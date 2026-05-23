@@ -6,9 +6,27 @@ export async function middleware(request: NextRequest) {
         request,
     })
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    // If environment variables are not available, skip Supabase operations
+    if (!supabaseUrl || !supabaseAnonKey) {
+        // For admin routes, redirect to login if no session cookie exists
+        const { pathname } = request.nextUrl
+        if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+            const hasSessionCookie = request.cookies.get('auth-token') || request.cookies.get('sb-access-token')
+            if (!hasSessionCookie) {
+                const url = request.nextUrl.clone()
+                url.pathname = '/admin/login'
+                return NextResponse.redirect(url)
+            }
+        }
+        return supabaseResponse
+    }
+
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        supabaseUrl,
+        supabaseAnonKey,
         {
             cookies: {
                 getAll() {
