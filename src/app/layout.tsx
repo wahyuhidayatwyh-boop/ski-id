@@ -8,8 +8,39 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "SKI | Sentral Kerohanian Islam",
-  description: "Website Resmi Sentral Kerohanian Islam, Organisasi Mahasiswa Islam yang modern, profesional, dan inspiratif.",
+  metadataBase: new URL('https://skitelkompurwokerto.site'),
+  title: "SKI | Sentral Kerohanian Islam Telkom Purwokerto",
+  description: "Website resmi Sentral Kerohanian Islam (SKI) Telkom Purwokerto. Wadah dakwah, kegiatan keislaman, dan ukhuwah islamiyah mahasiswa.",
+  keywords: [
+    "SKI Telkom Purwokerto",
+    "Sentral Kerohanian Islam",
+    "skitelkompurwokerto.site",
+    "SKI IT Telkom Purwokerto",
+    "organisasi islam kampus purwokerto",
+    "kajian islam telkom"
+  ],
+  openGraph: {
+    title: "SKI | Sentral Kerohanian Islam Telkom Purwokerto",
+    description: "Website resmi Sentral Kerohanian Islam (SKI) Telkom Purwokerto. Wadah dakwah, kegiatan keislaman, dan ukhuwah islamiyah mahasiswa.",
+    url: "https://skitelkompurwokerto.site",
+    siteName: "SKI Telkom Purwokerto",
+    images: [
+      {
+        url: "/ski-logo.png",
+        width: 800,
+        height: 800,
+        alt: "Logo SKI Telkom Purwokerto",
+      },
+    ],
+    locale: "id_ID",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SKI | Sentral Kerohanian Islam Telkom Purwokerto",
+    description: "Website resmi Sentral Kerohanian Islam (SKI) Telkom Purwokerto. Wadah dakwah, kegiatan keislaman, dan ukhuwah islamiyah mahasiswa.",
+    images: ["/ski-logo.png"],
+  },
 };
 
 export default function RootLayout({
