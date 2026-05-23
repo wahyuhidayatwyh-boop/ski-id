@@ -41,6 +41,9 @@ export const metadata: Metadata = {
     description: "Website resmi Sentral Kerohanian Islam (SKI) Telkom Purwokerto. Wadah dakwah, kegiatan keislaman, dan ukhuwah islamiyah mahasiswa.",
     images: ["/ski-logo.png"],
   },
+  verification: {
+    google: "haOSD52Kko3uxRJ2NXkenv7ohaHbSL1BH6P8pTrgZVg",
+  },
 };
 
 export default function RootLayout({
