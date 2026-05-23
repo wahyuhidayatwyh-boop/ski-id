@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Calendar, Tag, MessageCircle, ArrowLeft, Building2, MapPin, Users, ExternalLink, Loader2 } from "lucide-react";
 
+// Force dynamic rendering to ensure environment variables are available at request time
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
