@@ -1,3 +1,5 @@
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 import HeroSection from "@/components/home/HeroSection";
 import AcaraSection from "@/components/home/AcaraSection";
 import AboutSection from "@/components/home/AboutSection";
@@ -12,6 +14,7 @@ import LaporSection from "@/components/home/LaporSection";
 export default function Home() {
     return (
         <>
+            <Navbar />
             <HeroSection />
             <AcaraSection />
             <AboutSection />
@@ -22,6 +25,7 @@ export default function Home() {
             <CatalogSection />
             <FaqSection />
             <LaporSection />
+            <Footer />
         </>
     );
 }
