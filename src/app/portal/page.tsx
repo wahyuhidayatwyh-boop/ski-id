@@ -15,7 +15,7 @@ import Image from "next/image";
 interface Pengurus { id: string; full_name: string; jabatan: string; role_level: string; photo_url: string; phone_number: string; division_id: string; kabinet_id: string; divisions: { id: string, name: string, description: string, icon: string, hero_image_url: string, vision: string, mission: string }; kabinets: { name: string, period: string } }
 interface Acara { id: string; proker_id: string; title: string; description: string; start_time: string; location: string; status: string; jwt_secret_token: string; prokers?: { name: string } }
 interface Proker { id: string; division_id: string; name: string; description: string; image_url: string; status: string; created_at: string; }
-interface Task { id: string; proker_id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string } }
+interface Task { id: string; proker_id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string }; prokers?: { name: string } }
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
 interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; pengurus?: { full_name: string } }
 interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
@@ -167,7 +167,7 @@ export default function DakwahOSPortal() {
                             // Exclude themselves or other coordinators from the "staff performance" view, only show subordinates
                             const subordinates = divStaff.data.filter(s => !["ketuum", "div_ketua", "lso_ketua"].includes(s.role_level));
                             const perf = subordinates.map(staff => {
-                                const sTasks = tData.filter(t => t.assigned_to === staff.id);
+                                const sTasks = (tData ?? []).filter(t => t.assigned_to === staff.id);
                                 const done = sTasks.filter(t => t.is_completed).length;
                                 return {
                                     name: staff.full_name,
