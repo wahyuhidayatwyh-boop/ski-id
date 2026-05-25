@@ -5,24 +5,24 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
     LogOut, User, Calendar, CheckCircle, Clock, Plus, Briefcase, 
-    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive
+    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import Image from "next/image";
 
 // Interfaces
-interface Pengurus { id: string; full_name: string; jabatan: string; role_level: string; photo_url: string; phone_number: string; division_id: string; kabinet_id: string; divisions: { name: string }; kabinets: { name: string, period: string } }
-interface Acara { id: string; title: string; start_time: string; location: string; status: string; jwt_secret_token: string; }
-interface Proker { id: string; name: string; description: string; status: string; created_at: string; }
-interface Task { id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string } }
+interface Pengurus { id: string; full_name: string; jabatan: string; role_level: string; photo_url: string; phone_number: string; division_id: string; kabinet_id: string; divisions: { id: string, name: string, description: string, icon: string, hero_image_url: string, vision: string, mission: string }; kabinets: { name: string, period: string } }
+interface Acara { id: string; proker_id: string; title: string; description: string; start_time: string; location: string; status: string; jwt_secret_token: string; prokers?: { name: string } }
+interface Proker { id: string; division_id: string; name: string; description: string; image_url: string; status: string; created_at: string; }
+interface Task { id: string; proker_id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string } }
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
-interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; pengurus: { full_name: string } }
-interface CommitteeRole { id: string; role: string; acara_internal: { title: string, start_time: string } }
+interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; pengurus?: { full_name: string } }
+interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
 
 export default function DakwahOSPortal() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
-    const [userAuth, setUserAuth] = useState<any>(null);
     const [pengurus, setPengurus] = useState<Pengurus | null>(null);
     
     // Multi-Kabinet State
@@ -30,64 +30,80 @@ export default function DakwahOSPortal() {
     const [selectedKabinetId, setSelectedKabinetId] = useState<string>("");
     const isReadOnly = kabinets.find(k => k.id === selectedKabinetId)?.is_active === false;
 
-    // Tabs: dashboard (KTA & KPI), proker, timeline, dokumen, absensi
-    const [activeTab, setActiveTab] = useState<"dashboard" | "proker" | "timeline" | "dokumen" | "absensi">("dashboard");
+    // View States
+    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault">("dashboard");
+    const [activeDivisiId, setActiveDivisiId] = useState<string | null>(null);
+    const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker" | "acara">("profil");
     
     // Data States
+    const [allDivisions, setAllDivisions] = useState<DivisionData[]>([]);
     const [acaras, setAcaras] = useState<Acara[]>([]);
-    const [attendedEvents, setAttendedEvents] = useState<string[]>([]);
-    const [committeeRoles, setCommitteeRoles] = useState<CommitteeRole[]>([]);
+    const [attendedEvents, setAttendedEvents] = useState<Record<string, string>>({}); // acara_id -> status (hadir/izin/dll)
+    const [myTasks, setMyTasks] = useState<Task[]>([]);
     const [prokers, setProkers] = useState<Proker[]>([]);
-    const [tasks, setTasks] = useState<Record<string, Task[]>>({}); // proker_id -> tasks
-    const [staffList, setStaffList] = useState<{id: string, full_name: string}[]>([]);
+    const [allTasks, setAllTasks] = useState<Task[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
+    const [staffPerformance, setStaffPerformance] = useState<{name: string, total: number, done: number, kpi: number}[]>([]);
     
     // Form States
-    const [showProkerForm, setShowProkerForm] = useState(false);
-    const [newProker, setNewProker] = useState({ name: "", description: "" });
-    const [newTask, setNewTask] = useState({ proker_id: "", title: "", description: "", assigned_to: "" });
-    const [showTaskForm, setShowTaskForm] = useState<string | null>(null); // proker_id
-    const [docUpload, setDocUpload] = useState({ title: "", type: "proposal", file_url: "" });
-    const [showDocForm, setShowDocForm] = useState(false);
-
-    // Profile Edit
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [editProfileData, setEditProfileData] = useState({ phone_number: "", photo_url: "" });
+    const [showProkerForm, setShowProkerForm] = useState(false);
+    const [newProker, setNewProker] = useState({ name: "", description: "", image_url: "" });
+    const [showTaskForm, setShowTaskForm] = useState<string | null>(null); // proker_id
+    const [newTask, setNewTask] = useState({ proker_id: "", title: "", description: "", assigned_to: "" });
+    const [showDocForm, setShowDocForm] = useState(false);
+    const [docUpload, setDocUpload] = useState({ title: "", type: "proposal", file_url: "" });
 
-    // Scanner
+    // Edit Division & Proker States
+    const [isEditingDivision, setIsEditingDivision] = useState(false);
+    const [editDivisionData, setEditDivisionData] = useState({ description: "", hero_image_url: "", vision: "", mission: "" });
+    const [editingProkerId, setEditingProkerId] = useState<string | null>(null);
+    const [editProkerData, setEditProkerData] = useState({ name: "", description: "", image_url: "" });
+
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [verifying, setVerifying] = useState(false);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-    useEffect(() => {
-        checkSession();
-    }, []);
+    // Upload State
+    const [isUploading, setIsUploading] = useState(false);
 
-    useEffect(() => {
-        if (pengurus && selectedKabinetId) {
-            fetchDashboardData(selectedKabinetId);
+    const uploadFileToSupabase = async (file: File) => {
+        setIsUploading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+            const filePath = `uploads/${fileName}`;
+            const { error } = await supabase.storage.from('public_assets').upload(filePath, file);
+            if (error) throw error;
+            const { data } = supabase.storage.from('public_assets').getPublicUrl(filePath);
+            return data.publicUrl;
+        } catch (error: any) {
+            alert("Gagal mengunggah gambar: " + error.message);
+            throw error;
+        } finally {
+            setIsUploading(false);
         }
-    }, [pengurus, selectedKabinetId]);
+    };
+
+    const LOGO_URL = "/Logo SKI TEL-U P.png";
+
+    useEffect(() => { checkSession(); }, []);
+    useEffect(() => { if (pengurus && selectedKabinetId) fetchDashboardData(selectedKabinetId); }, [pengurus, selectedKabinetId]);
 
     const checkSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            router.push("/portal/login");
-            return;
-        }
-        setUserAuth(session.user);
+        if (!session) { router.push("/portal/login"); return; }
         
-        // Ambil data pengurus yang sinkron
         const { data: pData, error } = await supabase
             .from("pengurus")
-            .select("*, divisions(name), kabinets(name, period)")
+            .select("*, divisions(*), kabinets(*)")
             .eq("user_id", session.user.id)
             .single();
 
         if (error || !pData) {
-            alert("Akun Anda belum tersinkronisasi dengan data Pengurus. Anda mengakses sebagai Anggota Umum.");
-            // Handle regular member or redirect
+            alert("Akun Anda belum tersinkronisasi. Silakan hubungi Admin.");
             router.push("/");
             return;
         }
@@ -95,7 +111,6 @@ export default function DakwahOSPortal() {
         setPengurus(pData);
         setEditProfileData({ phone_number: pData.phone_number || "", photo_url: pData.photo_url || "" });
         
-        // Ambil daftar kabinet untuk dropdown
         const { data: kData } = await supabase.from("kabinets").select("*").order("created_at", { ascending: false });
         if (kData) {
             setKabinets(kData);
@@ -103,47 +118,66 @@ export default function DakwahOSPortal() {
             if (active) setSelectedKabinetId(active.id);
             else if (kData.length > 0) setSelectedKabinetId(kData[0].id);
         }
-
-        // Jika Koordinator, ambil daftar staff di divisinya
-        if (["ketuum", "wakil", "div_ketua", "lso_ketua"].includes(pData.role_level)) {
-            const { data: staffData } = await supabase.from("pengurus").select("id, full_name").eq("division_id", pData.division_id).eq("kabinet_id", pData.kabinet_id);
-            if (staffData) setStaffList(staffData);
-        }
     };
 
     const fetchDashboardData = async (kabinet_id: string) => {
         setLoading(true);
         try {
-            // Acara Internal
-            const { data: aData } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
+            // Fetch Divisions & Structure
+            const { data: divData } = await supabase.from("divisions").select("*");
+            if (divData) {
+                const enrichedDivs = await Promise.all(divData.map(async (div) => {
+                    const { data: pData } = await supabase.from("pengurus").select("full_name, jabatan, role_level, photo_url").eq("division_id", div.id).eq("kabinet_id", kabinet_id);
+                    const coordinator = pData?.find(p => ["div_ketua", "lso_ketua", "ketuum"].includes(p.role_level));
+                    const staffs = pData?.filter(p => !["div_ketua", "lso_ketua", "ketuum"].includes(p.role_level)) || [];
+                    return { ...div, coordinator, staffs };
+                }));
+                setAllDivisions(enrichedDivs as any);
+            }
+
+            // Fetch Acara
+            const { data: aData } = await supabase.from("acara_internal").select("*, prokers(name)").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
             if (aData) setAcaras(aData);
 
-            // Absensi untuk KPI
-            const { data: abData } = await supabase.from("absensi_digital").select("acara_id").eq("pengurus_id", pengurus!.id);
-            if (abData) setAttendedEvents(abData.map(a => a.acara_id));
+            // Fetch Absensi for KPI & Detail
+            const { data: abData } = await supabase.from("absensi_digital").select("acara_id, status").eq("pengurus_id", pengurus!.id);
+            if (abData) {
+                const attnMap: Record<string, string> = {};
+                abData.forEach(a => attnMap[a.acara_id] = a.status);
+                setAttendedEvents(attnMap);
+            }
 
-            // Committee Roles (Log Peran)
-            const { data: crData } = await supabase.from("committee_roles").select("id, role, acara_internal(title, start_time)").eq("pengurus_id", pengurus!.id);
-            if (crData) setCommitteeRoles(crData as any);
+            // Fetch My Tasks
+            const { data: myTData } = await supabase.from("proker_tasks").select("*, prokers(name)").eq("assigned_to", pengurus!.id);
+            if (myTData) setMyTasks(myTData as any);
 
-            // Prokers
-            let prokerQuery = supabase.from("prokers").select("*").eq("kabinet_id", kabinet_id);
-            if (pengurus!.division_id) prokerQuery = prokerQuery.eq("division_id", pengurus!.division_id);
-            const { data: prData } = await prokerQuery.order("created_at", { ascending: false });
-            
+            // Fetch Prokers for Active Division (or all if needed, but let's fetch all for this kabinet)
+            const { data: prData } = await supabase.from("prokers").select("*").eq("kabinet_id", kabinet_id).order("created_at", { ascending: false });
             if (prData) {
                 setProkers(prData);
-                // Fetch tasks for these prokers
                 const prokerIds = prData.map(p => p.id);
                 if (prokerIds.length > 0) {
-                    const { data: tData } = await supabase.from("proker_tasks").select("*, pengurus(full_name)").in("proker_id", prokerIds).order("created_at", { ascending: true });
-                    if (tData) {
-                        const taskMap: Record<string, Task[]> = {};
-                        tData.forEach(t => {
-                            if (!taskMap[t.proker_id]) taskMap[t.proker_id] = [];
-                            taskMap[t.proker_id].push(t);
-                        });
-                        setTasks(taskMap);
+                    const { data: tData } = await supabase.from("proker_tasks").select("*, pengurus(full_name)").in("proker_id", prokerIds);
+                    if (tData) setAllTasks(tData);
+                    
+                    // If Coordinator, calculate staff performance for their division
+                    if (isCoordinator) {
+                        const divStaff = await supabase.from("pengurus").select("id, full_name, role_level").eq("division_id", pengurus!.division_id);
+                        if (divStaff.data) {
+                            // Exclude themselves or other coordinators from the "staff performance" view, only show subordinates
+                            const subordinates = divStaff.data.filter(s => !["ketuum", "div_ketua", "lso_ketua"].includes(s.role_level));
+                            const perf = subordinates.map(staff => {
+                                const sTasks = tData.filter(t => t.assigned_to === staff.id);
+                                const done = sTasks.filter(t => t.is_completed).length;
+                                return {
+                                    name: staff.full_name,
+                                    total: sTasks.length,
+                                    done: done,
+                                    kpi: sTasks.length > 0 ? Math.round((done / sTasks.length) * 100) : 100
+                                };
+                            });
+                            setStaffPerformance(perf);
+                        }
                     }
                 }
             }
@@ -160,95 +194,95 @@ export default function DakwahOSPortal() {
     };
 
     const isCoordinator = pengurus && ["ketuum", "wakil", "div_ketua", "lso_ketua"].includes(pengurus.role_level);
-
+    
     // KPI Calculation
     const totalAcara = acaras.length;
-    const hadirCount = attendedEvents.length;
+    const hadirCount = Object.values(attendedEvents).filter(s => s === 'hadir').length;
     const kpiPercentage = totalAcara === 0 ? 100 : Math.round((hadirCount / totalAcara) * 100);
     const kpiStatus = kpiPercentage >= 75 ? "AMAN / AKTIF" : "PERLU EVALUASI / KURANG DISIPLIN";
-    const kpiColor = kpiPercentage >= 75 ? "text-green-500" : "text-red-500";
-    const kpiBg = kpiPercentage >= 75 ? "bg-green-500" : "bg-red-500";
+    const eventToday = acaras.find(a => new Date(a.start_time).toDateString() === new Date().toDateString() && a.status === 'live');
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        router.push("/portal/login");
-    };
-
+    // ACTIONS
+    const handleLogout = async () => { await supabase.auth.signOut(); router.push("/portal/login"); };
+    
     const saveProfileEdit = async () => {
         if (!pengurus) return;
-        const { error } = await supabase.from("pengurus").update({ phone_number: editProfileData.phone_number, photo_url: editProfileData.photo_url }).eq("id", pengurus.id);
-        if (!error) {
-            setPengurus({ ...pengurus, phone_number: editProfileData.phone_number, photo_url: editProfileData.photo_url });
-            setIsEditingProfile(false);
-        } else alert("Gagal update profil.");
+        await supabase.from("pengurus").update({ phone_number: editProfileData.phone_number, photo_url: editProfileData.photo_url }).eq("id", pengurus.id);
+        setPengurus({ ...pengurus, phone_number: editProfileData.phone_number, photo_url: editProfileData.photo_url });
+        setIsEditingProfile(false);
     };
 
-    // PROKER ACTION
     const submitProker = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newProker.name || isReadOnly) return;
-        const { error } = await supabase.from("prokers").insert([{ kabinet_id: pengurus!.kabinet_id, division_id: pengurus!.division_id, name: newProker.name, description: newProker.description }]);
-        if (!error) {
-            setShowProkerForm(false);
-            setNewProker({ name: "", description: "" });
-            fetchDashboardData(selectedKabinetId);
-        }
+        if (!newProker.name || isReadOnly || !activeDivisiId) return;
+        await supabase.from("prokers").insert([{ kabinet_id: selectedKabinetId, division_id: activeDivisiId, name: newProker.name, description: newProker.description, image_url: newProker.image_url }]);
+        setShowProkerForm(false);
+        setNewProker({ name: "", description: "", image_url: "" });
+        fetchDashboardData(selectedKabinetId);
+    };
+
+    const updateProker = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingProkerId || isReadOnly) return;
+        await supabase.from("prokers").update(editProkerData).eq("id", editingProkerId);
+        setEditingProkerId(null);
+        fetchDashboardData(selectedKabinetId);
+    };
+
+    const deleteProker = async (id: string) => {
+        if (isReadOnly || !confirm("Yakin ingin menghapus program kerja ini beserta semua data turunannya?")) return;
+        await supabase.from("prokers").delete().eq("id", id);
+        fetchDashboardData(selectedKabinetId);
+    };
+
+    const saveDivisionEdit = async () => {
+        if (!activeDivisiId || isReadOnly) return;
+        await supabase.from("divisions").update(editDivisionData).eq("id", activeDivisiId);
+        setIsEditingDivision(false);
+        fetchDashboardData(selectedKabinetId);
     };
 
     const submitTask = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTask.title || isReadOnly) return;
-        const { error } = await supabase.from("proker_tasks").insert([{ proker_id: newTask.proker_id, title: newTask.title, description: newTask.description, assigned_to: newTask.assigned_to || null }]);
-        if (!error) {
-            setShowTaskForm(null);
-            setNewTask({ proker_id: "", title: "", description: "", assigned_to: "" });
-            fetchDashboardData(selectedKabinetId);
-            
-            // Auto Email Reminder (Mock API Call for Email Notification)
-            if (newTask.assigned_to) {
-                const staff = staffList.find(s => s.id === newTask.assigned_to);
-                if (staff) {
-                    fetch("/api/send-email", {
-                        method: "POST",
-                        body: JSON.stringify({
-                            to: "mock-email@example.com", // In real app, fetch staff's email from auth.users
-                            subject: `Tugas Baru: ${newTask.title}`,
-                            body: `Anda mendapatkan tugas baru dari Koordinator Divisi untuk proker terkait. Segera cek Dakwah-OS Portal.`
-                        })
-                    }).catch(console.error);
-                }
-            }
+        await supabase.from("proker_tasks").insert([{ proker_id: newTask.proker_id, title: newTask.title, description: newTask.description, assigned_to: newTask.assigned_to || null }]);
+        
+        // Automated Email Reminder integration
+        if (newTask.assigned_to) {
+            const staffEmail = "mock-staff@example.com"; // Should fetch actual email
+            await fetch("/api/send-email", {
+                method: "POST",
+                body: JSON.stringify({
+                    to: staffEmail,
+                    subject: `Tugas Baru: ${newTask.title}`,
+                    body: `Halo, Anda mendapatkan tugas baru dari Koordinator Divisi: "${newTask.title}". Silakan cek Portal Dakwah-OS untuk detail dan centang jika sudah selesai.`
+                })
+            });
         }
+        
+        setShowTaskForm(null);
+        setNewTask({ proker_id: "", title: "", description: "", assigned_to: "" });
+        fetchDashboardData(selectedKabinetId);
     };
 
-    const toggleTaskCompletion = async (taskId: string, currentStatus: boolean) => {
+    const toggleTask = async (taskId: string, current: boolean) => {
         if (isReadOnly) return;
-        const { error } = await supabase.from("proker_tasks").update({ is_completed: !currentStatus }).eq("id", taskId);
-        if (!error) fetchDashboardData(selectedKabinetId);
+        await supabase.from("proker_tasks").update({ is_completed: !current }).eq("id", taskId);
+        fetchDashboardData(selectedKabinetId);
     };
 
-    // DOCUMENT ACTION
     const submitDocument = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!docUpload.title || !docUpload.file_url || isReadOnly) return;
-        const { error } = await supabase.from("documents").insert([{ 
-            kabinet_id: pengurus!.kabinet_id, 
-            division_id: pengurus!.division_id,
-            title: docUpload.title,
-            type: docUpload.type,
-            file_url: docUpload.file_url,
-            uploaded_by: pengurus!.id
-        }]);
-        if (!error) {
-            setShowDocForm(false);
-            setDocUpload({ title: "", type: "proposal", file_url: "" });
-            fetchDashboardData(selectedKabinetId);
-        }
+        await supabase.from("documents").insert([{ kabinet_id: selectedKabinetId, division_id: pengurus!.division_id, title: docUpload.title, type: docUpload.type, file_url: docUpload.file_url, uploaded_by: pengurus!.id }]);
+        setShowDocForm(false);
+        setDocUpload({ title: "", type: "proposal", file_url: "" });
+        fetchDashboardData(selectedKabinetId);
     };
 
-    // QR SCANNER LOGIC
+    // SCANNER
     useEffect(() => {
-        if (activeTab === "absensi" && scanning && !isReadOnly) {
+        if (scanning && !isReadOnly) {
             scannerRef.current = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
             scannerRef.current.render(
                 async (decodedText) => {
@@ -259,445 +293,612 @@ export default function DakwahOSPortal() {
                         const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", decodedText).eq("status", "live").single();
                         if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
                         
-                        const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus!.id }]);
+                        const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus!.id, status: 'hadir' }]);
                         if (insertError && insertError.code !== '23505') throw insertError;
                         
                         setScanResult(`Berhasil absen untuk: ${acara.title}`);
                         fetchDashboardData(selectedKabinetId);
-                    } catch (error: any) {
-                        setScanResult(`Gagal: ${error.message}`);
-                    } finally {
-                        setVerifying(false);
-                    }
-                },
-                () => {}
+                    } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
+                    finally { setVerifying(false); }
+                }, () => {}
             );
         } else if (scannerRef.current) {
             scannerRef.current.clear().catch(console.error);
             scannerRef.current = null;
         }
         return () => { if (scannerRef.current) scannerRef.current.clear().catch(console.error); };
-    }, [activeTab, scanning, isReadOnly]);
+    }, [scanning, isReadOnly]);
 
     if (loading && !pengurus) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-sky-500" size={40} /></div>;
     if (!pengurus) return null;
 
+    const activeDivisionData = allDivisions.find(d => d.id === activeDivisiId);
+
     return (
         <div className="min-h-screen bg-slate-50 pb-20 font-sans">
-            {/* Navbar */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+            {/* Navbar / Header */}
+            <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-sm">
-                            <Shield className="text-white" size={20} />
-                        </div>
+                        <img src={LOGO_URL} alt="Logo SKI" className="w-10 h-10 object-contain drop-shadow-sm" />
                         <div>
-                            <h1 className="font-black text-slate-900 leading-tight tracking-tight">Dakwah-OS</h1>
-                            <p className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Portal Pengurus</p>
+                            <h1 className="font-black text-slate-900 leading-tight tracking-tight text-lg">Dakwah-OS</h1>
+                            <p className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Enterprise Management</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
                         <select 
                             value={selectedKabinetId} 
-                            onChange={(e) => setSelectedKabinetId(e.target.value)}
-                            className={`text-sm font-bold border-none rounded-lg px-3 py-1.5 focus:ring-0 cursor-pointer ${isReadOnly ? 'bg-amber-100 text-amber-700' : 'bg-sky-50 text-sky-700'}`}
+                            onChange={(e) => { setSelectedKabinetId(e.target.value); setActiveDivisiId(null); setActiveTab("dashboard"); }}
+                            className={`text-sm font-bold border-none rounded-xl px-4 py-2 focus:ring-2 focus:ring-sky-500 cursor-pointer transition-colors shadow-sm ${isReadOnly ? 'bg-amber-100 text-amber-800' : 'bg-slate-900 text-white'}`}
                         >
-                            {kabinets.map(k => (
-                                <option key={k.id} value={k.id}>{k.name} {k.period} {k.is_active ? '(Aktif)' : '(Arsip)'}</option>
-                            ))}
+                            {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} {k.period} {k.is_active ? '(Aktif)' : '(Arsip)'}</option>)}
                         </select>
-                        <button onClick={handleLogout} className="text-slate-500 hover:bg-slate-100 p-2.5 rounded-xl transition-colors">
-                            <LogOut size={18} />
+                        <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors">
+                            <LogOut size={20} />
                         </button>
                     </div>
                 </div>
             </div>
 
             {isReadOnly && (
-                <div className="bg-amber-50 border-b border-amber-200 py-2">
-                    <p className="text-center text-sm font-bold text-amber-700 flex justify-center items-center gap-2">
-                        <Archive size={16} /> Mode Arsip Sejarah (Read-Only)
+                <div className="bg-amber-50 border-b border-amber-200 py-2.5 shadow-inner">
+                    <p className="text-center text-sm font-black text-amber-700 flex justify-center items-center gap-2">
+                        <Archive size={16} /> MODE ARSIP SEJARAH (READ-ONLY) AKTIF
                     </p>
                 </div>
             )}
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
                 
-                {/* Tabs */}
-                <div className="flex overflow-x-auto hide-scrollbar bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 mb-8">
-                    {[
-                        { id: "dashboard", icon: <User size={18} />, label: "Dashboard & KTA" },
-                        { id: "proker", icon: <CheckSquare size={18} />, label: "Proker Divisi" },
-                        { id: "timeline", icon: <Calendar size={18} />, label: "Timeline" },
-                        { id: "dokumen", icon: <FileText size={18} />, label: "Vault Proposal" },
-                        { id: "absensi", icon: <ScanLine size={18} />, label: "Scan Absen" }
-                    ].map((tab) => (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex-none sm:flex-1 flex items-center justify-center gap-2 py-3.5 px-6 sm:px-4 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
-                            {tab.icon} <span className="hidden sm:inline">{tab.label}</span>
-                        </button>
-                    ))}
-                </div>
+                {/* Main Navigation Tabs */}
+                {!activeDivisiId && (
+                    <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 mb-8 w-fit mx-auto">
+                        {[
+                            { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
+                            { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
+                            { id: "vault", icon: <Archive size={18} />, label: "Vault Approval" }
+                        ].map((tab) => (
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+                                className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
+                                {tab.icon} <span>{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
 
-                <div className="mt-4">
-                    
-                    {/* TAB DASHBOARD: KTA & KPI */}
-                    {activeTab === "dashboard" && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* VIEW 1: DASHBOARD UTAMA (Kondisi Saya) */}
+                {activeTab === "dashboard" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        
+                        {/* Left Column: KTA & Absen Cepat */}
+                        <div className="lg:col-span-4 space-y-6">
                             {/* KTA Digital */}
-                            <div className="lg:col-span-1">
-                                <div className="bg-gradient-to-br from-sky-500 to-blue-700 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden group">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                                    <div className="flex justify-between items-start mb-6 relative z-10">
-                                        <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest border border-white/20">KTA Digital</div>
-                                        <Shield size={24} className="opacity-50" />
+                            <div className="bg-gradient-to-br from-sky-600 to-blue-800 rounded-[2rem] p-6 shadow-2xl shadow-sky-900/20 text-white relative overflow-hidden group">
+                                <div className="absolute -top-20 -right-20 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl" />
+                                <div className="flex justify-between items-start mb-8 relative z-10">
+                                    <img src={LOGO_URL} alt="Logo SKI" className="w-12 h-12 object-contain brightness-0 invert drop-shadow-md" />
+                                    <div className="bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/30 shadow-inner">KTA DIGITAL</div>
+                                </div>
+                                <div className="relative z-10 flex flex-col items-center text-center">
+                                    <div className="w-28 h-28 bg-white/20 p-1.5 rounded-[1.5rem] mb-5 shadow-xl rotate-3 group-hover:rotate-0 transition-transform">
+                                        <div className="w-full h-full bg-slate-300 rounded-[1.2rem] overflow-hidden bg-cover bg-center" style={{ backgroundImage: `url(${pengurus.photo_url || 'https://via.placeholder.com/150'})` }} />
                                     </div>
-                                    <div className="flex flex-col items-center text-center relative z-10">
-                                        <div className="w-24 h-24 bg-white/20 p-1 rounded-full mb-4">
-                                            <div className="w-full h-full bg-slate-300 rounded-full overflow-hidden bg-cover bg-center" style={{ backgroundImage: `url(${pengurus.photo_url || 'https://via.placeholder.com/150'})` }} />
+                                    <h2 className="text-2xl font-black mb-1 drop-shadow-md">{pengurus.full_name}</h2>
+                                    <p className="text-sky-200 font-bold text-sm mb-6 uppercase tracking-wider">{pengurus.jabatan} • {pengurus.divisions?.name}</p>
+                                    
+                                    <div className="w-full bg-black/20 rounded-2xl p-5 border border-white/10 text-left backdrop-blur-sm">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-1">Kabinet</p>
+                                                <p className="text-sm font-bold">{pengurus.kabinets?.name}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-1">WhatsApp</p>
+                                                <p className="text-sm font-bold">{pengurus.phone_number || "-"}</p>
+                                            </div>
                                         </div>
-                                        <h2 className="text-2xl font-black mb-1">{pengurus.full_name}</h2>
-                                        <p className="text-sky-200 font-bold text-sm mb-4">{pengurus.jabatan} • {pengurus.divisions?.name}</p>
-                                        <div className="w-full bg-black/20 rounded-xl p-4 border border-white/10 text-left">
-                                            <p className="text-xs text-white/70 mb-1 font-medium">Kabinet</p>
-                                            <p className="text-sm font-bold mb-3">{pengurus.kabinets?.name} ({pengurus.kabinets?.period})</p>
-                                            <p className="text-xs text-white/70 mb-1 font-medium">WhatsApp</p>
-                                            <p className="text-sm font-bold">{pengurus.phone_number || "-"}</p>
+                                    </div>
+                                    {!isReadOnly && (
+                                        <button onClick={() => setIsEditingProfile(!isEditingProfile)} className="mt-4 text-xs font-bold text-white hover:text-sky-200 flex items-center gap-1"><Camera size={14}/> Edit Profil Pribadi</button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Edit Profile Form */}
+                            <AnimatePresence>
+                                {isEditingProfile && !isReadOnly && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                        <h4 className="font-bold mb-3 text-slate-800 text-sm">Update Data Pribadi</h4>
+                                        <input type="text" placeholder="No. WhatsApp Aktif" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium mb-3 focus:outline-none focus:border-sky-500" value={editProfileData.phone_number} onChange={e => setEditProfileData({...editProfileData, phone_number: e.target.value})} />
+                                        <div className="mb-3">
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Upload Foto Profil (Opsional)</label>
+                                            <input type="file" accept="image/*" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-sky-500" 
+                                                onChange={async (e) => { if(e.target.files && e.target.files[0]) { const url = await uploadFileToSupabase(e.target.files[0]); setEditProfileData({...editProfileData, photo_url: url}); } }} 
+                                            />
                                         </div>
-                                        {!isReadOnly && (
-                                            <button onClick={() => setIsEditingProfile(!isEditingProfile)} className="mt-4 text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-colors w-full border border-white/10">Edit Profil Data</button>
+                                        <button disabled={isUploading} onClick={saveProfileEdit} className="w-full bg-slate-900 text-white font-bold text-sm py-2.5 rounded-lg shadow-md disabled:bg-slate-400">{isUploading ? 'Mengunggah...' : 'Simpan Perubahan'}</button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Quick Scan Event Today */}
+                            {eventToday && !isReadOnly && (
+                                <div className="bg-sky-50 border-2 border-sky-500 rounded-2xl p-5 shadow-lg shadow-sky-500/20 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-bl-lg animate-pulse">LIVE HARI INI</div>
+                                    <h3 className="font-black text-slate-900 mb-1">{eventToday.title}</h3>
+                                    <p className="text-xs font-medium text-slate-600 mb-4 flex items-center gap-1"><Clock size={12}/> {new Date(eventToday.start_time).toLocaleTimeString("id-ID")}</p>
+                                    
+                                    {scanning ? (
+                                        <div className="w-full h-48 bg-slate-900 rounded-xl overflow-hidden relative">
+                                            {verifying && <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center"><Loader2 className="animate-spin text-sky-500" size={24}/></div>}
+                                            <div id="reader" className="w-full h-full"></div>
+                                            <button onClick={() => setScanning(false)} className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs font-bold px-4 py-1.5 rounded-full z-20">Batal</button>
+                                        </div>
+                                    ) : scanResult ? (
+                                        <div className="bg-green-100 text-green-700 text-xs font-bold p-3 rounded-lg text-center border border-green-200">
+                                            {scanResult}
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => setScanning(true)} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-3 rounded-xl shadow-md flex items-center justify-center gap-2 transition-colors">
+                                            <ScanLine size={18}/> Scan QR Kehadiran
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right Column: Tasks & KPI */}
+                        <div className="lg:col-span-8 space-y-6">
+                            
+                            {/* KPI Widget */}
+                            <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-8">
+                                <div className="relative w-36 h-36 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                        <path className="text-slate-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path className={kpiPercentage >= 75 ? "text-green-500" : "text-red-500"} strokeDasharray={`${kpiPercentage}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <div className="absolute text-3xl font-black text-slate-900">{kpiPercentage}%</div>
+                                </div>
+                                <div className="flex-1 text-center sm:text-left">
+                                    <div className="flex items-center gap-2 justify-center sm:justify-start mb-2">
+                                        <Activity size={20} className="text-sky-500"/>
+                                        <h3 className="text-xl font-black text-slate-900">Grafik Kedisiplinan</h3>
+                                    </div>
+                                    <p className="text-sm font-medium text-slate-500 mb-6">Persentase kehadiran Anda pada acara internal kabinet.</p>
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase">Total Hadir</p>
+                                            <p className="text-xl font-black text-slate-900">{hadirCount} Acara</p>
+                                        </div>
+                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase">Status Performa</p>
+                                            <div className={`mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-black uppercase ${kpiPercentage >= 75 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                {kpiPercentage >= 75 ? <Shield size={12} /> : <AlertTriangle size={12} />}
+                                                {kpiPercentage >= 75 ? "AMAN / AKTIF" : "PERLU EVALUASI"}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Checklist Tugas Pribadi */}
+                            <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200">
+                                <h3 className="font-black text-lg text-slate-900 mb-4 flex items-center gap-2"><CheckSquare size={18} className="text-sky-500"/> Checklist Tugas Saya</h3>
+                                {myTasks.length === 0 ? (
+                                    <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                        <p className="text-sm font-bold text-slate-400">Tidak ada tugas yang ditugaskan kepada Anda saat ini.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {myTasks.map(t => (
+                                            <div key={t.id} className={`flex items-start gap-4 p-4 rounded-xl border transition-all ${t.is_completed ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-sky-100 shadow-sm hover:border-sky-300'}`}>
+                                                <button disabled={isReadOnly} onClick={() => toggleTask(t.id, t.is_completed)} className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center border-2 transition-colors ${t.is_completed ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-300 text-transparent hover:border-sky-400'} ${isReadOnly && 'cursor-not-allowed'}`}>
+                                                    <Check size={14} strokeWidth={4} />
+                                                </button>
+                                                <div>
+                                                    <h4 className={`text-sm font-bold ${t.is_completed ? 'line-through text-slate-500' : 'text-slate-900'}`}>{t.title}</h4>
+                                                    {t.description && <p className="text-xs font-medium text-slate-500 mt-1">{t.description}</p>}
+                                                    {t.prokers && <p className="text-[10px] font-black uppercase text-sky-600 mt-2 bg-sky-50 inline-block px-2 py-0.5 rounded">Proker: {t.prokers.name}</p>}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Staff Performance Summary (Coordinator Only) */}
+                            {isCoordinator && staffPerformance.length > 0 && (
+                                <div className="bg-slate-900 rounded-[2rem] p-6 shadow-xl border border-slate-800 text-white">
+                                    <h3 className="font-black text-lg mb-4 flex items-center gap-2"><Users size={18} className="text-sky-400"/> Ringkasan Performa Staff Divisi</h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead>
+                                                <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
+                                                    <th className="pb-3 font-bold">Nama Staff</th>
+                                                    <th className="pb-3 font-bold text-center">Tugas Selesai</th>
+                                                    <th className="pb-3 font-bold text-center">KPI Proker</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {staffPerformance.map((staff, idx) => (
+                                                    <tr key={idx}>
+                                                        <td className="py-3 font-bold">{staff.name}</td>
+                                                        <td className="py-3 text-center text-slate-300">{staff.done} / {staff.total}</td>
+                                                        <td className="py-3 text-center">
+                                                            <span className={`px-2 py-1 rounded text-xs font-black ${staff.kpi >= 75 ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
+                                                                {staff.kpi}%
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* VIEW 2: DAPUR DIVISI (List & Details) */}
+                {activeTab === "divisi" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                        <div className="mb-8 text-center">
+                            <h2 className="text-2xl font-black text-slate-900">Dapur Divisi Organisasi</h2>
+                            <p className="text-sm font-medium text-slate-500 mt-2">Pilih divisi untuk melihat ruang kerja, program kerja, dan arsip acara mereka.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {allDivisions.map(div => (
+                                <div key={div.id} onClick={() => { 
+                                    setActiveDivisiId(div.id); 
+                                    setDivisiSubTab("profil"); 
+                                    setEditDivisionData({ description: div.description || "", hero_image_url: div.hero_image_url || "", vision: div.vision || "", mission: div.mission || "" });
+                                }} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:border-sky-300 transition-all cursor-pointer group">
+                                    <div className="h-32 bg-slate-200 relative overflow-hidden">
+                                        <div className="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-500" style={{ backgroundImage: `url(${div.hero_image_url || 'https://via.placeholder.com/600x200'})` }} />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
+                                        <div className="absolute bottom-4 left-4 right-4 text-white">
+                                            <h3 className="text-xl font-black drop-shadow-md">{div.name}</h3>
+                                        </div>
+                                    </div>
+                                    <div className="p-5">
+                                        <p className="text-sm text-slate-600 font-medium line-clamp-2 mb-4">{div.description}</p>
+                                        {div.coordinator && (
+                                            <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                                                <img src={div.coordinator.photo_url || 'https://via.placeholder.com/50'} alt="Koord" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                                                <div>
+                                                    <p className="text-[10px] font-black text-sky-600 uppercase">Koordinator</p>
+                                                    <p className="text-xs font-bold text-slate-900">{div.coordinator.full_name}</p>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
 
-                                {isEditingProfile && !isReadOnly && (
-                                    <div className="mt-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                        <h4 className="font-bold mb-3 text-slate-800">Edit Data Diri</h4>
-                                        <input type="text" placeholder="No. WhatsApp" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium mb-3 focus:outline-none focus:border-sky-500" value={editProfileData.phone_number} onChange={e => setEditProfileData({...editProfileData, phone_number: e.target.value})} />
-                                        <input type="text" placeholder="URL Foto Profil" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium mb-3 focus:outline-none focus:border-sky-500" value={editProfileData.photo_url} onChange={e => setEditProfileData({...editProfileData, photo_url: e.target.value})} />
-                                        <button onClick={saveProfileEdit} className="w-full bg-slate-900 text-white font-bold text-sm py-2 rounded-lg">Simpan Perubahan</button>
-                                    </div>
-                                )}
+                {/* DIVISION DETAILS (Nested View) */}
+                {activeDivisiId && activeDivisionData && (
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="pb-10">
+                        {/* Back Button */}
+                        <button onClick={() => setActiveDivisiId(null)} className="mb-6 flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors">
+                            <ChevronLeft size={16} /> Kembali ke Daftar Divisi
+                        </button>
+
+                        {/* Hero Section */}
+                        <div className="rounded-[2rem] overflow-hidden bg-slate-900 relative h-64 sm:h-80 mb-8 shadow-xl">
+                            <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: `url(${activeDivisionData.hero_image_url || 'https://via.placeholder.com/1200x400'})` }} />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+                            <div className="absolute bottom-0 left-0 right-0 p-8">
+                                <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 drop-shadow-lg">{activeDivisionData.name}</h1>
+                                <p className="text-sky-200 font-medium max-w-2xl text-sm sm:text-base drop-shadow-md">{activeDivisionData.description}</p>
                             </div>
+                        </div>
 
-                            {/* KPI & Log */}
-                            <div className="lg:col-span-2 space-y-6">
-                                {/* Widget KPI */}
-                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center text-sky-600"><Activity size={20} /></div>
-                                        <div>
-                                            <h3 className="font-black text-slate-900">Grafik Kehadiran (KPI)</h3>
-                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Evaluasi Kedisiplinan</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row items-center gap-6">
-                                        <div className="relative w-32 h-32 flex items-center justify-center flex-shrink-0">
-                                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                                                <path className="text-slate-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                                <path className={`${kpiColor}`} strokeDasharray={`${kpiPercentage}, 100`} strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                            </svg>
-                                            <div className="absolute text-3xl font-black text-slate-800">{kpiPercentage}%</div>
-                                        </div>
-                                        <div className="flex-1 text-center sm:text-left">
-                                            <div className="grid grid-cols-2 gap-4 mb-4">
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                                                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Hadir</p>
-                                                    <p className="text-xl font-black text-slate-900">{hadirCount}</p>
+                        {/* Divisi Sub-Tabs */}
+                        <div className="flex border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
+                            {[
+                                { id: "profil", icon: <Info size={16}/>, label: "Profil Divisi" },
+                                { id: "proker", icon: <Briefcase size={16}/>, label: "Program Kerja" },
+                                { id: "acara", icon: <Calendar size={16}/>, label: "Detail Acara & Absensi" }
+                            ].map(tab => (
+                                <button key={tab.id} onClick={() => setDivisiSubTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${divisiSubTab === tab.id ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* SUB-TAB 1: PROFIL DIVISI */}
+                        {divisiSubTab === "profil" && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 relative overflow-hidden">
+                                        {isCoordinator && pengurus.division_id === activeDivisiId && !isReadOnly && (
+                                            <button onClick={() => setIsEditingDivision(!isEditingDivision)} className="absolute top-6 right-6 text-sky-500 hover:text-sky-700 bg-sky-50 p-2 rounded-lg transition-colors">
+                                                {isEditingDivision ? <X size={18} /> : <Edit size={18} />}
+                                            </button>
+                                        )}
+                                        
+                                        {isEditingDivision ? (
+                                            <div className="space-y-4">
+                                                <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Edit size={18}/> Edit Profil Divisi</h3>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 mb-1">Upload Cover/Banner Divisi</label>
+                                                    <input type="file" accept="image/*" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium" 
+                                                        onChange={async (e) => { if(e.target.files && e.target.files[0]) { const url = await uploadFileToSupabase(e.target.files[0]); setEditDivisionData({...editDivisionData, hero_image_url: url}); } }} 
+                                                    />
                                                 </div>
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                                                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Total Acara</p>
-                                                    <p className="text-xl font-black text-slate-900">{totalAcara}</p>
+                                                <textarea rows={3} placeholder="Deskripsi Singkat Divisi" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={editDivisionData.description} onChange={e => setEditDivisionData({...editDivisionData, description: e.target.value})} />
+                                                <textarea rows={3} placeholder="Visi Divisi" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={editDivisionData.vision} onChange={e => setEditDivisionData({...editDivisionData, vision: e.target.value})} />
+                                                <textarea rows={3} placeholder="Misi Divisi" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={editDivisionData.mission} onChange={e => setEditDivisionData({...editDivisionData, mission: e.target.value})} />
+                                                <button disabled={isUploading} onClick={saveDivisionEdit} className="bg-sky-500 text-white font-black px-6 py-2.5 rounded-xl text-sm hover:bg-sky-600 transition-colors disabled:bg-slate-400">{isUploading ? 'Mengunggah...' : 'Simpan Perubahan'}</button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div>
+                                                    <h3 className="font-black text-slate-900 mb-2 flex items-center gap-2"><TargetIcon /> Visi Divisi</h3>
+                                                    <p className="text-slate-600 text-sm leading-relaxed">{activeDivisionData.vision || "Belum ada visi yang ditulis."}</p>
                                                 </div>
-                                            </div>
-                                            <div className={`px-4 py-3 rounded-xl font-black text-sm flex items-center justify-center sm:justify-start gap-2 ${kpiPercentage >= 75 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                                                {kpiPercentage >= 75 ? <Shield size={16} /> : <AlertTriangle size={16} />}
-                                                STATUS: {kpiStatus}
-                                            </div>
-                                        </div>
+                                                <div>
+                                                    <h3 className="font-black text-slate-900 mb-2 flex items-center gap-2"><FlagIcon /> Misi Divisi</h3>
+                                                    <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{activeDivisionData.mission || "Belum ada misi yang ditulis."}</p>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
-
-                                {/* Log Record Peran */}
-                                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600"><Award size={20} /></div>
+                                
+                                <div className="space-y-6">
+                                    {/* Koordinator */}
+                                    <div className="bg-sky-900 text-white p-6 rounded-3xl shadow-lg flex items-center gap-5">
+                                        <img src={activeDivisionData.coordinator?.photo_url || 'https://via.placeholder.com/100'} className="w-20 h-20 rounded-2xl object-cover border-2 border-white/20" />
                                         <div>
-                                            <h3 className="font-black text-slate-900">Riwayat Kepanitiaan</h3>
-                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Log Peran Pengurus</p>
+                                            <p className="text-[10px] font-black uppercase text-sky-300 tracking-widest mb-1">Koordinator Divisi</p>
+                                            <h4 className="text-xl font-black">{activeDivisionData.coordinator?.full_name || "Belum ditunjuk"}</h4>
+                                            <p className="text-sm font-medium text-slate-300">{activeDivisionData.coordinator?.jabatan}</p>
                                         </div>
                                     </div>
-                                    {committeeRoles.length > 0 ? (
-                                        <div className="space-y-3">
-                                            {committeeRoles.map(cr => (
-                                                <div key={cr.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                                    
+                                    {/* Staffs */}
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                        <h4 className="font-black text-slate-900 mb-4">Staff Divisi ({activeDivisionData.staffs.length})</h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {activeDivisionData.staffs.map((staff, idx) => (
+                                                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                                    <img src={staff.photo_url || 'https://via.placeholder.com/50'} className="w-10 h-10 rounded-full object-cover" />
                                                     <div>
-                                                        <h4 className="font-bold text-slate-900 text-sm">{cr.acara_internal?.title}</h4>
-                                                        <p className="text-xs font-medium text-slate-500">{new Date(cr.acara_internal?.start_time).toLocaleDateString("id-ID")}</p>
+                                                        <p className="text-sm font-bold text-slate-900 line-clamp-1">{staff.full_name}</p>
+                                                        <p className="text-[10px] font-bold text-slate-500 uppercase">{staff.jabatan}</p>
                                                     </div>
-                                                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-700 uppercase">{cr.role}</span>
                                                 </div>
                                             ))}
+                                            {activeDivisionData.staffs.length === 0 && <p className="text-sm text-slate-400 font-medium">Belum ada staff.</p>}
                                         </div>
-                                    ) : (
-                                        <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                            <p className="text-sm font-bold text-slate-400">Belum ada riwayat kepanitiaan</p>
-                                        </div>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
-                        </motion.div>
-                    )}
+                        )}
 
-                    {/* TAB PROKER (KOORDINATOR VS STAFF) */}
-                    {activeTab === "proker" && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                            <div className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                <div>
-                                    <h3 className="font-black text-slate-900">Manajemen Proker {pengurus.divisions?.name}</h3>
-                                    <p className="text-sm font-medium text-slate-500">{isCoordinator ? 'Kontrol Penuh Koordinator' : 'Tampilan Staff'}</p>
-                                </div>
-                                {isCoordinator && !isReadOnly && (
-                                    <button onClick={() => setShowProkerForm(!showProkerForm)} className="bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-slate-800 flex items-center gap-2">
-                                        <Plus size={16} /> <span className="hidden sm:inline">Tambah Proker</span>
-                                    </button>
-                                )}
-                            </div>
-                            
-                            <AnimatePresence>
-                                {showProkerForm && isCoordinator && !isReadOnly && (
-                                    <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitProker} className="bg-sky-50 p-6 rounded-2xl border border-sky-100 overflow-hidden">
-                                        <h4 className="font-black text-sky-900 mb-4">Buat Program Kerja Baru</h4>
-                                        <div className="grid gap-4 mb-4">
-                                            <input required type="text" placeholder="Nama Proker" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500" value={newProker.name} onChange={e => setNewProker({...newProker, name: e.target.value})} />
-                                            <textarea rows={2} placeholder="Deskripsi Singkat" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500" value={newProker.description} onChange={e => setNewProker({...newProker, description: e.target.value})} />
-                                        </div>
-                                        <button type="submit" className="bg-sky-600 hover:bg-sky-700 text-white font-black px-6 py-2.5 rounded-xl text-sm transition-colors">Simpan Proker</button>
-                                    </motion.form>
-                                )}
-                            </AnimatePresence>
-
-                            <div className="grid gap-6">
-                                {prokers.length === 0 && (
-                                    <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-300">
-                                        <p className="font-bold text-slate-400">Belum ada Program Kerja di divisi ini.</p>
+                        {/* SUB-TAB 2: PROGRAM KERJA */}
+                        {divisiSubTab === "proker" && (
+                            <div className="space-y-6">
+                                {isCoordinator && pengurus.division_id === activeDivisiId && !isReadOnly && (
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-8">
+                                        <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Plus size={18}/> Tambah Program Kerja Baru</h4>
+                                        <form onSubmit={submitProker} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 mb-1">Nama Proker</label>
+                                                    <input required type="text" placeholder="Nama Proker" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={newProker.name} onChange={e => setNewProker({...newProker, name: e.target.value})} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 mb-1">Upload Foto/Infografis Proker</label>
+                                                    <input type="file" accept="image/*" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium" 
+                                                        onChange={async (e) => { if(e.target.files && e.target.files[0]) { const url = await uploadFileToSupabase(e.target.files[0]); setNewProker({...newProker, image_url: url}); } }} 
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-4">
+                                                <textarea required rows={3} placeholder="Deskripsi Makro Proker..." className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={newProker.description} onChange={e => setNewProker({...newProker, description: e.target.value})} />
+                                                <button disabled={isUploading} type="submit" className="bg-sky-500 hover:bg-sky-600 text-white font-black py-3 rounded-xl text-sm transition-colors disabled:bg-slate-400">{isUploading ? 'Mengunggah...' : 'Simpan Proker'}</button>
+                                            </div>
+                                        </form>
                                     </div>
                                 )}
-                                {prokers.map(p => (
-                                    <div key={p.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-black text-xl text-slate-900">{p.name}</h4>
-                                                <span className="text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-700 px-3 py-1 rounded-full">{p.status}</span>
-                                            </div>
-                                            <p className="text-slate-500 text-sm font-medium">{p.description}</p>
-                                        </div>
-                                        
-                                        <div className="p-6">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <h5 className="font-bold text-slate-800 text-sm flex items-center gap-2"><CheckSquare size={16} className="text-sky-500" /> Sub-Tugas (Checklist)</h5>
-                                                {isCoordinator && !isReadOnly && (
-                                                    <button onClick={() => setShowTaskForm(showTaskForm === p.id ? null : p.id)} className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1">
-                                                        <Plus size={14} /> Tambah Tugas
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {showTaskForm === p.id && isCoordinator && !isReadOnly && (
-                                                <form onSubmit={submitTask} className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                                    <div className="grid sm:grid-cols-2 gap-3 mb-3">
-                                                        <input required type="text" placeholder="Judul Tugas" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value, proker_id: p.id})} />
-                                                        <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium" value={newTask.assigned_to} onChange={e => setNewTask({...newTask, assigned_to: e.target.value})}>
-                                                            <option value="">-- Tugaskan ke Staff --</option>
-                                                            {staffList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-                                                        </select>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {prokers.filter(p => p.division_id === activeDivisiId).length === 0 && <div className="col-span-full text-center py-12"><p className="text-slate-400 font-bold">Belum ada Program Kerja terdaftar.</p></div>}
+                                    {prokers.filter(p => p.division_id === activeDivisiId).map(p => (
+                                        editingProkerId === p.id ? (
+                                            <div key={p.id} className="bg-white p-6 rounded-3xl border border-sky-300 shadow-lg mb-8">
+                                                <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2"><Edit size={18}/> Edit Program Kerja</h4>
+                                                <form onSubmit={updateProker} className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-500 mb-1">Nama Proker</label>
+                                                        <input required type="text" placeholder="Nama Proker" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={editProkerData.name} onChange={e => setEditProkerData({...editProkerData, name: e.target.value})} />
                                                     </div>
-                                                    <input type="text" placeholder="Catatan/Deskripsi..." className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium mb-3" value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} />
-                                                    <div className="flex gap-2">
-                                                        <button type="submit" className="bg-sky-500 text-white text-xs font-bold px-4 py-2 rounded-lg">Berikan Tugas</button>
-                                                        <button type="button" onClick={() => setShowTaskForm(null)} className="bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-lg">Batal</button>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-500 mb-1">Upload Foto/Infografis Proker</label>
+                                                        <input type="file" accept="image/*" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium" 
+                                                            onChange={async (e) => { if(e.target.files && e.target.files[0]) { const url = await uploadFileToSupabase(e.target.files[0]); setEditProkerData({...editProkerData, image_url: url}); } }} 
+                                                        />
+                                                    </div>
+                                                    <textarea required rows={3} placeholder="Deskripsi Makro Proker..." className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={editProkerData.description} onChange={e => setEditProkerData({...editProkerData, description: e.target.value})} />
+                                                    <div className="flex gap-3">
+                                                        <button disabled={isUploading} type="submit" className="bg-sky-500 hover:bg-sky-600 text-white font-black px-5 py-2.5 rounded-xl text-sm transition-colors disabled:bg-slate-400">{isUploading ? 'Mengunggah...' : 'Update Proker'}</button>
+                                                        <button type="button" onClick={() => setEditingProkerId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-black px-5 py-2.5 rounded-xl text-sm transition-colors">Batal</button>
                                                     </div>
                                                 </form>
-                                            )}
-
-                                            <div className="space-y-2">
-                                                {!tasks[p.id] || tasks[p.id].length === 0 ? (
-                                                    <p className="text-xs font-medium text-slate-400 italic">Belum ada tugas yang dibagikan.</p>
-                                                ) : (
-                                                    tasks[p.id].map(t => {
-                                                        const isMine = t.assigned_to === pengurus.id;
-                                                        const canCheck = (isMine || isCoordinator) && !isReadOnly;
-                                                        return (
-                                                            <div key={t.id} className={`flex items-start gap-3 p-3 rounded-xl border ${t.is_completed ? 'bg-green-50/50 border-green-100' : isMine ? 'bg-sky-50/50 border-sky-100' : 'bg-white border-slate-100'}`}>
-                                                                <button disabled={!canCheck} onClick={() => toggleTaskCompletion(t.id, t.is_completed)} className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-colors ${t.is_completed ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-300 text-transparent hover:border-sky-400'} ${!canCheck && 'opacity-50 cursor-not-allowed'}`}>
-                                                                    <Check size={12} strokeWidth={4} />
-                                                                </button>
-                                                                <div className="flex-1">
-                                                                    <p className={`text-sm font-bold ${t.is_completed ? 'text-green-800 line-through opacity-70' : 'text-slate-800'}`}>{t.title}</p>
-                                                                    {t.description && <p className={`text-xs mt-0.5 ${t.is_completed ? 'text-green-600/70' : 'text-slate-500'}`}>{t.description}</p>}
-                                                                </div>
-                                                                {t.pengurus && (
-                                                                    <div className="flex-shrink-0">
-                                                                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${isMine ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500'}`}>{t.pengurus.full_name.split(' ')[0]}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )
-                                                    })
+                                            </div>
+                                        ) : (
+                                            <div key={p.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative group">
+                                                {isCoordinator && pengurus.division_id === activeDivisiId && !isReadOnly && (
+                                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                        <button onClick={() => { setEditingProkerId(p.id); setEditProkerData({ name: p.name, description: p.description, image_url: p.image_url || "" }); }} className="bg-white p-2 rounded-lg text-sky-500 hover:bg-sky-50 shadow-sm"><Edit size={16} /></button>
+                                                        <button onClick={() => deleteProker(p.id)} className="bg-white p-2 rounded-lg text-red-500 hover:bg-red-50 shadow-sm"><Trash2 size={16} /></button>
+                                                    </div>
                                                 )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* TAB TIMELINE */}
-                    {activeTab === "timeline" && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                            <h3 className="font-black text-slate-900 mb-6 flex items-center gap-2"><Calendar size={20} className="text-sky-500"/> Timeline & Agenda Organisasi</h3>
-                            <div className="relative border-l-2 border-slate-100 ml-3 space-y-8 pb-4">
-                                {acaras.map((acara, idx) => (
-                                    <div key={acara.id} className="relative pl-6">
-                                        <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-4 border-white ${acara.status === 'live' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : acara.status === 'finished' ? 'bg-green-500' : 'bg-sky-400'}`}></div>
-                                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-black text-lg text-slate-900">{acara.title}</h4>
-                                                <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${acara.status === 'live' ? 'bg-red-100 text-red-700 animate-pulse' : acara.status === 'finished' ? 'bg-green-100 text-green-700' : 'bg-sky-100 text-sky-700'}`}>{acara.status}</span>
-                                            </div>
-                                            <p className="text-sm font-medium text-slate-500 mb-3 flex items-center gap-4">
-                                                <span className="flex items-center gap-1.5"><Clock size={14} className="text-slate-400"/> {new Date(acara.start_time).toLocaleString("id-ID")}</span>
-                                                <span className="flex items-center gap-1.5"><Shield size={14} className="text-slate-400"/> {acara.location}</span>
-                                            </p>
-                                            
-                                            {/* Automated Reminder Info UI */}
-                                            {isCoordinator && acara.status === 'upcoming' && (
-                                                <div className="mt-4 pt-4 border-t border-slate-200">
-                                                    <p className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1"><Activity size={12}/> Automated Reminders Status</p>
-                                                    <div className="flex gap-2">
-                                                        <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-[10px] font-bold border border-green-100">H-30 Sent</span>
-                                                        <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded text-[10px] font-bold border border-amber-100">H-14 Pending</span>
+                                                {p.image_url && <div className="h-40 bg-cover bg-center border-b border-slate-100" style={{ backgroundImage: `url(${p.image_url})` }} />}
+                                                <div className="p-6 flex-1 flex flex-col">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h4 className="font-black text-xl text-slate-900 pr-16">{p.name}</h4>
+                                                        <span className="text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">{p.status}</span>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* TAB DOKUMEN (VAULT PROPOSAL) */}
-                    {activeTab === "dokumen" && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                            <div className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                <div>
-                                    <h3 className="font-black text-slate-900">Digital Vault</h3>
-                                    <p className="text-sm font-medium text-slate-500">Proposal Triwulan & LPJ</p>
-                                </div>
-                                {isCoordinator && !isReadOnly && (
-                                    <button onClick={() => setShowDocForm(!showDocForm)} className="bg-sky-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-sky-600 flex items-center gap-2">
-                                        <Upload size={16} /> <span className="hidden sm:inline">Unggah Dokumen</span>
-                                    </button>
-                                )}
-                            </div>
-
-                            <AnimatePresence>
-                                {showDocForm && isCoordinator && !isReadOnly && (
-                                    <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitDocument} className="bg-slate-900 p-6 rounded-2xl overflow-hidden shadow-xl">
-                                        <h4 className="font-black text-sky-400 mb-4 flex items-center gap-2"><Upload size={18}/> Unggah Proposal/LPJ</h4>
-                                        <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                                            <input required type="text" placeholder="Judul Dokumen (Misal: Proposal Triwulan 1)" className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-sky-500" value={docUpload.title} onChange={e => setDocUpload({...docUpload, title: e.target.value})} />
-                                            <select className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-sky-500" value={docUpload.type} onChange={e => setDocUpload({...docUpload, type: e.target.value})}>
-                                                <option value="proposal">Proposal Triwulan</option>
-                                                <option value="lpj">Lembar Pertanggungjawaban (LPJ)</option>
-                                            </select>
-                                        </div>
-                                        <input required type="text" placeholder="URL File (Gunakan Google Drive Link)" className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:border-sky-500" value={docUpload.file_url} onChange={e => setDocUpload({...docUpload, file_url: e.target.value})} />
-                                        <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-slate-900 font-black px-6 py-3 rounded-xl text-sm transition-colors">Submit ke Flow Approval</button>
-                                    </motion.form>
-                                )}
-                            </AnimatePresence>
-
-                            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                                <div className="space-y-4">
-                                    {documents.length === 0 && <p className="text-center text-slate-400 font-bold py-8">Belum ada dokumen arsip.</p>}
-                                    {documents.map(doc => (
-                                        <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl gap-4 hover:border-sky-200 hover:bg-sky-50/50 transition-colors">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 flex-shrink-0"><FileText size={20}/></div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900">{doc.title}</h4>
-                                                    <p className="text-xs font-medium text-slate-500 mt-1">Oleh: {doc.pengurus?.full_name} • {new Date(doc.created_at).toLocaleDateString("id-ID")}</p>
-                                                    
-                                                    {/* Approval Flow Visualizer */}
-                                                    <div className="flex items-center gap-1 mt-3">
-                                                        <span className={`h-1.5 w-8 rounded-full ${['draft', 'reviewed_bendahara', 'reviewed_sekretaris', 'approved'].includes(doc.status) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                                                        <span className={`h-1.5 w-8 rounded-full ${['reviewed_bendahara', 'reviewed_sekretaris', 'approved'].includes(doc.status) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                                                        <span className={`h-1.5 w-8 rounded-full ${['reviewed_sekretaris', 'approved'].includes(doc.status) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                                                        <span className={`h-1.5 w-8 rounded-full ${['approved'].includes(doc.status) ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase ml-2">{doc.status.replace('_', ' ')}</span>
-                                                    </div>
+                                                    <p className="text-sm text-slate-500 font-medium flex-1">{p.description}</p>
                                                 </div>
                                             </div>
-                                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:text-sky-600 hover:border-sky-200 transition-colors">
-                                                <Download size={16} /> Buka File
-                                            </a>
-                                        </div>
+                                        )
                                     ))}
                                 </div>
                             </div>
-                        </motion.div>
-                    )}
+                        )}
 
-                    {/* TAB ABSENSI (SCANNER) */}
-                    {activeTab === "absensi" && (
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-center">
-                            <div className="w-16 h-16 bg-gradient-to-br from-sky-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-500/30">
-                                <QrCode className="text-white" size={32} />
-                            </div>
-                            <h3 className="text-xl font-black text-slate-900 mb-2">Absensi Kehadiran Real-time</h3>
-                            <p className="text-slate-500 text-sm font-medium mb-8 max-w-md mx-auto">Arahkan kamera ke layar QR Code pada acara yang berstatus "LIVE" untuk mencatatkan kehadiran di sistem KPI.</p>
-                            
-                            {isReadOnly ? (
-                                <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300 font-bold text-slate-500">
-                                    Fitur Scanner Dinonaktifkan pada Mode Arsip (Kabinet Tidak Aktif)
-                                </div>
-                            ) : scanResult ? (
-                                <div className={`p-6 rounded-2xl border ${scanResult.includes("Gagal") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"} mb-6`}>
-                                    <h4 className="font-black text-lg mb-2 flex justify-center items-center gap-2">
-                                        {scanResult.includes("Gagal") ? <X size={20}/> : <CheckCircle size={20}/>}
-                                        {scanResult.includes("Gagal") ? "Scan Gagal" : "Absensi Berhasil!"}
-                                    </h4>
-                                    <p className="text-sm font-medium">{scanResult}</p>
-                                    <button onClick={() => { setScanResult(null); setScanning(true); }} className="mt-4 px-6 py-2.5 bg-white rounded-xl shadow-sm border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50">Scan Ulang</button>
-                                </div>
-                            ) : (
-                                <>
-                                    {scanning ? (
-                                        <div className="max-w-sm mx-auto overflow-hidden rounded-3xl border-[6px] border-slate-900 shadow-2xl relative">
-                                            {verifying && (
-                                                <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
-                                                    <Loader2 className="animate-spin text-sky-500 mb-3" size={40} />
-                                                    <p className="font-black text-slate-900">Memverifikasi Token...</p>
+                        {/* SUB-TAB 3: DETAIL ACARA & ABSENSI */}
+                        {divisiSubTab === "acara" && (
+                            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+                                <h3 className="font-black text-lg text-slate-900 mb-6 border-b border-slate-100 pb-4 flex items-center gap-2"><Calendar size={20} className="text-sky-500"/> Daftar Acara & Bukti Kehadiran</h3>
+                                <div className="space-y-6">
+                                    {acaras.filter(a => prokers.find(p => p.id === a.proker_id && p.division_id === activeDivisiId)).length === 0 && <p className="text-slate-400 font-bold text-center py-8">Belum ada turunan acara dari divisi ini.</p>}
+                                    {acaras.filter(a => prokers.find(p => p.id === a.proker_id && p.division_id === activeDivisiId)).map(acara => {
+                                        const statusHadir = attendedEvents[acara.id]; // hadir/izin/dll for current user
+                                        return (
+                                            <div key={acara.id} className="flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-100">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h4 className="font-black text-slate-900 text-lg">{acara.title}</h4>
+                                                        {acara.status === 'live' && <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded animate-pulse uppercase">Live</span>}
+                                                    </div>
+                                                    <p className="text-xs font-bold text-sky-600 uppercase mb-2">Turunan Proker: {acara.prokers?.name}</p>
+                                                    <p className="text-sm font-medium text-slate-600 mb-3">{acara.description}</p>
+                                                    <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
+                                                        <span className="flex items-center gap-1"><Calendar size={14}/> {new Date(acara.start_time).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}</span>
+                                                        <span className="flex items-center gap-1"><Clock size={14}/> {new Date(acara.start_time).toLocaleTimeString("id-ID", {hour: '2-digit', minute:'2-digit'})}</span>
+                                                    </div>
                                                 </div>
-                                            )}
-                                            <div id="reader" className="w-full"></div>
-                                            <button onClick={() => setScanning(false)} className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500 text-white px-6 py-2 rounded-full font-black text-sm shadow-xl shadow-red-500/30 z-20">Batal Scan</button>
-                                        </div>
-                                    ) : (
-                                        <button onClick={() => setScanning(true)} className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-2xl font-black text-lg shadow-xl shadow-slate-900/20 hover:shadow-2xl transition-all flex items-center justify-center gap-3 mx-auto">
-                                            <ScanLine size={24} /> Buka Kamera Scanner
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </motion.div>
-                    )}
+                                                <div className="flex-shrink-0 flex sm:flex-col justify-end sm:justify-start items-center sm:items-end gap-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-4 sm:pt-0 sm:pl-6">
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Status Kehadiran Anda</p>
+                                                    {statusHadir ? (
+                                                        <span className={`px-4 py-1.5 rounded-lg text-sm font-black uppercase border ${statusHadir === 'hadir' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                                            {statusHadir}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-4 py-1.5 rounded-lg text-sm font-black uppercase bg-slate-200 text-slate-500 border border-slate-300">
+                                                            BELUM ABSEN
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
 
-                </div>
+                {/* VIEW 3: VAULT APPROVAL (PROPOSAL & LPJ) */}
+                {activeTab === "vault" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                        {/* Email Automation Flow UI */}
+                        <div className="bg-slate-900 rounded-[2rem] p-6 sm:p-8 shadow-xl border border-slate-800 text-white mb-8">
+                            <h3 className="font-black text-xl mb-6 flex items-center gap-2"><Mail size={20} className="text-sky-400"/> Sistem Otomatisasi Reminder (Mailing)</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {[
+                                    { day: "H-30", title: "Konsep & Ruangan", desc: "Reminder draft kasar & birokrasi" },
+                                    { day: "H-21", title: "Progres Awal", desc: "Cek checklist tugas staff" },
+                                    { day: "H-14", title: "Progres Akhir", desc: "Cek finalisasi kepanitiaan" },
+                                    { day: "H-7", title: "Undangan Massal", desc: "Broadcast email ke kabinet" },
+                                ].map((step, i) => (
+                                    <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                                        <div className="w-10 h-10 bg-sky-500/20 text-sky-400 flex items-center justify-center rounded-xl font-black text-sm mb-3">{step.day}</div>
+                                        <h4 className="font-bold text-sm mb-1">{step.title}</h4>
+                                        <p className="text-xs text-slate-400">{step.desc}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h3 className="font-black text-xl text-slate-900">Digital Vault & Flow Proposal</h3>
+                                <p className="text-sm font-medium text-slate-500">Arsip terpusat untuk regenerasi dan transparansi birokrasi.</p>
+                            </div>
+                            {isCoordinator && !isReadOnly && (
+                                <button onClick={() => setShowDocForm(!showDocForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                    <Upload size={16} /> Unggah Dokumen
+                                </button>
+                            )}
+                        </div>
+
+                        <AnimatePresence>
+                            {showDocForm && isCoordinator && !isReadOnly && (
+                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitDocument} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <input required type="text" placeholder="Judul Dokumen (Misal: Proposal Triwulan 1)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={docUpload.title} onChange={e => setDocUpload({...docUpload, title: e.target.value})} />
+                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={docUpload.type} onChange={e => setDocUpload({...docUpload, type: e.target.value})}>
+                                            <option value="proposal">Proposal Triwulan</option>
+                                            <option value="lpj">Lembar Pertanggungjawaban (LPJ)</option>
+                                        </select>
+                                    </div>
+                                    <input required type="text" placeholder="URL File (Gunakan Google Drive Link)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500" value={docUpload.file_url} onChange={e => setDocUpload({...docUpload, file_url: e.target.value})} />
+                                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">Submit ke Sistem Approval</button>
+                                </motion.form>
+                            )}
+                        </AnimatePresence>
+
+                        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+                            <div className="space-y-4">
+                                {documents.length === 0 && <p className="text-center text-slate-400 font-bold py-8">Belum ada dokumen yang diunggah pada kabinet ini.</p>}
+                                {documents.map(doc => (
+                                    <div key={doc.id} className="flex flex-col xl:flex-row xl:items-center justify-between p-5 bg-slate-50 border border-slate-100 rounded-2xl gap-4 hover:border-sky-300 transition-colors group">
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-slate-200 text-sky-500 flex-shrink-0 shadow-sm"><FileText size={24}/></div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h4 className="font-black text-slate-900 text-lg">{doc.title}</h4>
+                                                    <span className="text-[10px] font-black uppercase bg-slate-200 text-slate-600 px-2 py-0.5 rounded">{doc.type}</span>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-500">Diunggah oleh: <span className="text-slate-700">{doc.pengurus?.full_name}</span> • {new Date(doc.created_at).toLocaleDateString("id-ID")}</p>
+                                                
+                                                {/* Approval Flow Visualizer */}
+                                                <div className="flex items-center gap-2 mt-4 overflow-x-auto hide-scrollbar pb-1">
+                                                    {['draft', 'ditinjau_bendahara', 'ditinjau_sekretaris', 'approved'].map((step, idx, arr) => {
+                                                        const statusMap: any = { draft: 0, ditinjau_bendahara: 1, ditinjau_sekretaris: 2, approved: 3 };
+                                                        const docStatusVal = statusMap[doc.status] || 0;
+                                                        const isPast = idx <= docStatusVal;
+                                                        const isCurrent = idx === docStatusVal;
+                                                        return (
+                                                            <div key={step} className="flex items-center">
+                                                                <div className={`flex items-center justify-center h-6 w-auto px-3 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-colors ${isCurrent ? 'bg-sky-500 text-white shadow-md' : isPast ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-400'}`}>
+                                                                    {isPast && !isCurrent ? <Check size={10} className="mr-1"/> : null}
+                                                                    {step.replace('ditinjau_', 'Cek ')}
+                                                                </div>
+                                                                {idx < arr.length - 1 && <div className={`w-4 h-0.5 mx-1 ${idx < docStatusVal ? 'bg-green-400' : 'bg-slate-200'}`}></div>}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-black text-slate-700 hover:text-sky-600 hover:border-sky-300 transition-colors shadow-sm">
+                                            <Download size={18} /> Unduh File Dokumen
+                                        </a>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
             </div>
         </div>
     );
 }
+
+// Simple icons
+function TargetIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-500"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> }
+function FlagIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-500"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> }

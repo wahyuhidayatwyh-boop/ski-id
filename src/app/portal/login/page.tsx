@@ -118,9 +118,7 @@ export default function PortalLoginPage() {
                     <ArrowLeft size={16} /> Kembali ke Beranda
                 </Link>
                 <div className="flex justify-center">
-                    <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-900/20">
-                        <ShieldCheck className="text-white" size={32} />
-                    </div>
+                    <img src="/Logo SKI TEL-U P.png" alt="Logo SKI" className="w-20 h-20 object-contain drop-shadow-xl" />
                 </div>
                 <h2 className="mt-6 text-center text-4xl font-black text-slate-900 tracking-tight">
                     Dakwah<span className="text-sky-500">-OS</span>

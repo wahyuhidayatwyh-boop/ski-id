@@ -16,7 +16,8 @@ import {
     FileText,
     Menu,
     X,
-    Activity
+    Activity,
+    Briefcase
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -41,6 +42,7 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
         { id: "dakwah-os", label: "Dakwah-OS", icon: <Activity size={20} />, href: `/admin/admin1/dakwah-os` },
         { id: "beranda", label: "Beranda", icon: <Home size={20} />, href: `/admin/admin1/beranda` },
         { id: "profil", label: "Profil", icon: <Users size={20} />, href: `/admin/admin1/profil` },
+        { id: "dapur-divisi", label: "Dapur Divisi", icon: <Briefcase size={20} />, href: `/admin/admin1/dapur-divisi` },
         { id: "acara", label: "Acara", icon: <Calendar size={20} />, href: `/admin/admin1/acara` },
         { id: "dokumentasi", label: "Dokumentasi", icon: <Image size={20} />, href: `/admin/admin1/dokumentasi` },
     ];
@@ -74,14 +76,20 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
                 />
             )}
 
-            {/* Mobile Toggle Button */}
-            <button
-                onClick={() => setMobileOpen(true)}
-                className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-white rounded-lg shadow-md border border-gray-200"
-                aria-label="Buka menu"
-            >
-                <Menu size={20} className="text-gray-600" />
-            </button>
+            {/* Mobile Header Bar */}
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-40 flex items-center px-4 shadow-sm">
+                <button
+                    onClick={() => setMobileOpen(true)}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors mr-3"
+                    aria-label="Buka menu"
+                >
+                    <Menu size={24} className="text-gray-700" />
+                </button>
+                <div className="flex items-center gap-2">
+                    <img src="/Logo SKI TEL-U P.png" alt="Logo SKI" className="w-8 h-8 object-contain" />
+                    <span className="font-bold text-gray-800">Admin SKI</span>
+                </div>
+            </div>
 
             <aside
                 className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 transition-all duration-300 z-30
@@ -95,16 +103,12 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
                     <div className="flex items-center gap-2">
                         {!collapsed && (
                             <>
-                                <div className="w-8 h-8 bg-gradient-to-br from-sky-500 to-blue-600 rounded-lg flex items-center justify-center">
-                                    <FileText className="text-white" size={18} />
-                                </div>
+                                <img src="/Logo SKI TEL-U P.png" alt="Logo SKI" className="w-8 h-8 object-contain" />
                                 <span className="font-bold text-gray-800">Admin SKI</span>
                             </>
                         )}
                         {collapsed && (
-                            <div className="w-8 h-8 bg-gradient-to-br from-sky-500 to-blue-600 rounded-lg flex items-center justify-center">
-                                <FileText className="text-white" size={18} />
-                            </div>
+                            <img src="/Logo SKI TEL-U P.png" alt="Logo SKI" className="w-8 h-8 object-contain" />
                         )}
                     </div>
                     <div className="flex items-center gap-1">

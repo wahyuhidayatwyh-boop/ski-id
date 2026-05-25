@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { Award, Target, Users, Compass, ChevronDown, Loader2 } from "lucide-react";
+import { Award, Target, Users, Compass, ChevronDown, Loader2, User } from "lucide-react";
 import Link from "next/link";
 
 interface Pengurus {
@@ -43,6 +43,7 @@ export default function ProfilClient() {
     const [kabinets, setKabinets] = useState<Kabinet[]>([]);
     const [pengurus, setPengurus] = useState<Pengurus[]>([]);
     const [divisions, setDivisions] = useState<Division[]>([]);
+    const [prokers, setProkers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedKabinetId, setSelectedKabinetId] = useState<string>("");
     const [activeTab, setActiveTab] = useState<"interactive" | "image">("interactive");
@@ -53,15 +54,17 @@ export default function ProfilClient() {
     }, []);
 
     const fetchData = async () => {
-        const [{ data: kab }, { data: pen }, { data: div }] = await Promise.all([
+        const [{ data: kab }, { data: pen }, { data: div }, { data: pro }] = await Promise.all([
             supabase.from("kabinets").select("*").order("is_active", { ascending: false }).order("created_at", { ascending: false }),
             supabase.from("pengurus").select("*").eq("status", "active"),
             supabase.from("divisions").select("*"),
+            supabase.from("prokers").select("*")
         ]);
         const kabData = kab || [];
         setKabinets(kabData);
         setPengurus(pen || []);
         setDivisions(div || []);
+        setProkers(pro || []);
         if (kabData.length > 0) setSelectedKabinetId(kabData[0].id);
         setLoading(false);
     };
@@ -94,6 +97,8 @@ export default function ProfilClient() {
     const getDivisionById = (divisionId: string) => {
         return divisions.find(d => d.id === divisionId);
     };
+
+    const activeDivisions = divisions.filter(d => kabinetPengurus.some(p => p.division_id === d.id));
 
     if (loading) return (
         <div className="bg-[#f8fafc] min-h-screen flex items-center justify-center">
@@ -445,6 +450,59 @@ export default function ProfilClient() {
                         </div>
                     )}
                 </div>
+
+                {/* Profil Divisi & LSO Showcase */}
+                {activeDivisions.length > 0 && (
+                    <div className="mt-16 mb-8">
+                        <div className="text-center mb-12">
+                            <h2 className="text-3xl font-bold text-[#1e293b] mb-4">Ruang Divisi & LSO</h2>
+                            <p className="text-gray-500 max-w-2xl mx-auto">Mengenal lebih dekat fungsi, peran, dan pemimpin setiap divisi serta lembaga semi otonom di bawah naungan Kabinet {activeCabinet?.name}.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {activeDivisions.map(div => {
+                                const koor = kabinetPengurus.find(p => p.division_id === div.id && ["div_ketua", "lso_ketua", "ketuum"].includes(p.role_level));
+                                const staffCount = kabinetPengurus.filter(p => p.division_id === div.id && !["div_ketua", "lso_ketua", "ketuum"].includes(p.role_level)).length;
+                                
+                                return (
+                                    <Link key={div.id} href={`/profil/divisi/${encodeURIComponent(div.name)}`} className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-sky-300 transition-all cursor-pointer group flex flex-col">
+                                        {/* Cover */}
+                                        <div className="h-40 relative overflow-hidden bg-gray-200">
+                                            <div className="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-700" style={{ backgroundImage: `url(${(div as any).hero_image_url || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80'})` }} />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-[#1e293b]/90 to-transparent" />
+                                            <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
+                                                <span className="text-3xl drop-shadow-md">{div.icon || '🏛️'}</span>
+                                                <h3 className="text-white font-black text-xl drop-shadow-md tracking-wide line-clamp-1">{div.name}</h3>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-5 flex-1 flex flex-col">
+                                            <p className="text-sm text-gray-500 mb-5 line-clamp-3 flex-1">{div.description || "Divisi kepengurusan SKI."}</p>
+                                            
+                                            <div className="flex items-center justify-between border-t border-gray-100 pt-4 mt-auto">
+                                                {koor ? (
+                                                    <div className="flex items-center gap-2">
+                                                        {koor.photo_url ? <img src={koor.photo_url} alt="" className="w-8 h-8 rounded-full object-cover shadow-sm" /> : <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center"><User className="text-[#0ea5e9]" size={14}/></div>}
+                                                        <div>
+                                                            <p className="text-[10px] text-sky-600 font-bold uppercase tracking-wider">{koor.jabatan || "Koordinator"}</p>
+                                                            <p className="font-bold text-[#1e293b] text-xs max-w-[120px] truncate">{koor.full_name}</p>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs font-medium text-gray-400">Belum ada koordinator</span>
+                                                )}
+                                                
+                                                <div className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-100">
+                                                    <Users size={14} className="text-gray-400" />
+                                                    <span className="text-xs font-bold text-gray-600">{staffCount}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>
