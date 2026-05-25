@@ -3,148 +3,241 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { LogIn, User, Lock, AlertCircle, ArrowLeft } from "lucide-react";
+import { LogIn, User, Lock, AlertCircle, ArrowLeft, Mail, UserPlus, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function PortalLoginPage() {
     const router = useRouter();
-    const [nim, setNim] = useState("");
+    const [isLogin, setIsLogin] = useState(true);
+    const [fullName, setFullName] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
+        setSuccess("");
 
         try {
-            // Check credentials against pengurus table
-            const { data, error: fetchError } = await supabase
-                .from("pengurus")
-                .select("id, full_name, jabatan, status")
-                .eq("nim", nim)
-                .eq("password", password)
-                .single();
+            if (isLogin) {
+                // LOGIN FLOW
+                const { data, error: authError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
 
-            if (fetchError || !data) {
-                throw new Error("NIM atau Password salah");
+                if (authError) throw authError;
+
+                // Cek sinkronisasi pengurus
+                const { data: pengurusData, error: pengurusError } = await supabase
+                    .from("pengurus")
+                    .select("*")
+                    .eq("user_id", data.user?.id)
+                    .single();
+
+                if (pengurusError || !pengurusData) {
+                    // Kalau belum sync, coba cari berdasarkan full_name
+                    const { data: matchData, error: matchError } = await supabase
+                        .from("pengurus")
+                        .select("*")
+                        .ilike("full_name", data.user?.user_metadata?.full_name || "")
+                        .is("user_id", null)
+                        .single();
+                        
+                    if (matchData) {
+                        // Sinkronkan akun dengan data pengurus
+                        await supabase
+                            .from("pengurus")
+                            .update({ user_id: data.user?.id, updated_at: new Date().toISOString() })
+                            .eq("id", matchData.id);
+                    } else {
+                        // Tidak cocok, anggap member biasa (bisa tampilkan alert tapi tetap masuk)
+                        console.log("Login sebagai anggota umum");
+                    }
+                }
+                
+                router.push("/portal");
+
+            } else {
+                // REGISTER FLOW
+                const { data, error: signUpError } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: fullName
+                        }
+                    }
+                });
+
+                if (signUpError) throw signUpError;
+
+                if (data.user) {
+                    // Sinkronisasi otomatis
+                    const { data: matchData } = await supabase
+                        .from("pengurus")
+                        .select("*")
+                        .ilike("full_name", fullName)
+                        .is("user_id", null)
+                        .single();
+
+                    if (matchData) {
+                        await supabase
+                            .from("pengurus")
+                            .update({ user_id: data.user.id })
+                            .eq("id", matchData.id);
+                        setSuccess(`Akun berhasil dibuat dan sinkron dengan Jabatan: ${matchData.jabatan}. Silakan masuk.`);
+                    } else {
+                        setSuccess("Akun berhasil dibuat sebagai Anggota Umum. Silakan masuk.");
+                    }
+                    setIsLogin(true); // Pindah ke tab login
+                    setPassword(""); // Reset password field for login
+                }
             }
-
-            if (data.status !== "active") {
-                throw new Error("Akun pengurus Anda tidak aktif");
-            }
-
-            // Save session to localStorage
-            localStorage.setItem("portal_session", JSON.stringify({
-                id: data.id,
-                full_name: data.full_name,
-                jabatan: data.jabatan
-            }));
-
-            // Redirect to dashboard
-            router.push("/portal");
-            
         } catch (err: any) {
-            setError(err.message || "Gagal login. Pastikan NIM dan Password benar.");
+            setError(err.message || "Terjadi kesalahan. Silakan coba lagi.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-            <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8 px-4 sm:px-0">
-                <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-sky-600 transition-colors text-sm font-medium mb-6">
-                    <ArrowLeft size={16} />
-                    Kembali ke Beranda
+        <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+            {/* Background Decorations */}
+            <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-sky-100 to-transparent opacity-50 z-0 pointer-events-none" />
+            <div className="absolute -top-40 -right-40 w-96 h-96 bg-sky-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob z-0 pointer-events-none" />
+            <div className="absolute top-20 -left-20 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 z-0 pointer-events-none" />
+
+            <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8 px-4 sm:px-0 relative z-10">
+                <Link href="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-sky-600 transition-colors text-sm font-bold mb-6">
+                    <ArrowLeft size={16} /> Kembali ke Beranda
                 </Link>
                 <div className="flex justify-center">
-                    <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-                        <User className="text-white" size={32} />
+                    <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-900/20">
+                        <ShieldCheck className="text-white" size={32} />
                     </div>
                 </div>
-                <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                    Portal Anggota SKI
+                <h2 className="mt-6 text-center text-4xl font-black text-slate-900 tracking-tight">
+                    Dakwah<span className="text-sky-500">-OS</span>
                 </h2>
-                <p className="mt-2 text-center text-sm text-gray-600">
-                    Masuk untuk mengelola program kerja dan melihat agenda kegiatan
+                <p className="mt-2 text-center text-sm font-medium text-slate-600">
+                    Sistem Manajemen Internal & Portal Pengurus SKI
                 </p>
             </div>
 
-            <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-3xl sm:px-10 border border-gray-100 mx-4 sm:mx-0"
-                >
-                    {error && (
-                        <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 text-sm">
-                            <AlertCircle size={18} />
-                            {error}
-                        </div>
-                    )}
+            <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+                <div className="bg-white py-8 px-4 shadow-2xl shadow-slate-200/50 sm:rounded-[2rem] sm:px-10 border border-slate-100 mx-4 sm:mx-0">
+                    
+                    {/* Tab Switcher */}
+                    <div className="flex p-1 bg-slate-100 rounded-xl mb-8">
+                        <button 
+                            type="button"
+                            onClick={() => setIsLogin(true)}
+                            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${isLogin ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Masuk
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setIsLogin(false)}
+                            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${!isLogin ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Daftar Akun Baru
+                        </button>
+                    </div>
 
-                    <form className="space-y-6" onSubmit={handleLogin}>
+                    <AnimatePresence mode="wait">
+                        {error && (
+                            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium">
+                                <AlertCircle size={18} /> {error}
+                            </motion.div>
+                        )}
+                        {success && (
+                            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium">
+                                <ShieldCheck size={18} /> {success}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <form className="space-y-5" onSubmit={handleAuth}>
+                        {!isLogin && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                                <label className="block text-sm font-bold text-slate-700 mb-1.5">Nama Lengkap (Sesuai KTP/SK)</label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <User className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        required={!isLogin}
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        className="block w-full pl-11 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 sm:text-sm font-medium transition-all"
+                                        placeholder="Contoh: Wahyu Hidayat"
+                                    />
+                                </div>
+                                <p className="mt-1.5 text-xs text-slate-500 font-medium">
+                                    *Pastikan nama sesuai agar otomatis tersinkronisasi dengan database kepengurusan.
+                                </p>
+                            </motion.div>
+                        )}
+
                         <div>
-                            <label htmlFor="nim" className="block text-sm font-semibold text-gray-700">
-                                NIM
-                            </label>
-                            <div className="mt-2 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <User className="h-5 w-5 text-gray-400" />
+                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Email Aktif</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <Mail className="h-5 w-5 text-slate-400" />
                                 </div>
                                 <input
-                                    id="nim"
-                                    name="nim"
-                                    type="text"
+                                    type="email"
                                     required
-                                    value={nim}
-                                    onChange={(e) => setNim(e.target.value)}
-                                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent sm:text-sm"
-                                    placeholder="Masukkan NIM Anda"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="block w-full pl-11 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 sm:text-sm font-medium transition-all"
+                                    placeholder="email@example.com"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-                                Password
-                            </label>
-                            <div className="mt-2 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Lock className="h-5 w-5 text-gray-400" />
+                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Password</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <Lock className="h-5 w-5 text-slate-400" />
                                 </div>
                                 <input
-                                    id="password"
-                                    name="password"
                                     type="password"
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent sm:text-sm"
-                                    placeholder="••••••••"
+                                    className="block w-full pl-11 pr-3 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 sm:text-sm font-medium transition-all"
+                                    placeholder="Minimal 6 karakter"
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                {loading ? "Memproses..." : (
-                                    <>
-                                        <LogIn size={18} />
-                                        Masuk Portal
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full flex justify-center items-center gap-2 py-3.5 px-4 rounded-xl shadow-lg shadow-sky-500/30 text-sm font-black text-white bg-sky-500 hover:bg-sky-400 focus:outline-none focus:ring-4 focus:ring-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all mt-6"
+                        >
+                            {loading ? "Memproses..." : isLogin ? (
+                                <>
+                                    <LogIn size={18} /> Masuk ke Portal
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus size={18} /> Daftar Sekarang
+                                </>
+                            )}
+                        </button>
                     </form>
-                </motion.div>
+                </div>
             </div>
         </div>
     );
