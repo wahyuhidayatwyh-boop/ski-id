@@ -136,8 +136,9 @@ export default function DakwahOSPortal() {
             }
 
             // Fetch Acara
-            const { data: aData } = await supabase.from("acara_internal").select("*, prokers(name)").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
+            const { data: aData, error: aError } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
             if (aData) setAcaras(aData);
+            if (aError) console.error("Acara Error:", aError);
 
             // Fetch Absensi for KPI & Detail
             const { data: abData } = await supabase.from("absensi_digital").select("acara_id, status").eq("pengurus_id", pengurus!.id);
@@ -148,8 +149,9 @@ export default function DakwahOSPortal() {
             }
 
             // Fetch My Tasks
-            const { data: myTData } = await supabase.from("proker_tasks").select("*, prokers(name)").eq("assigned_to", pengurus!.id);
+            const { data: myTData, error: tError } = await supabase.from("proker_tasks").select("*").eq("assigned_to", pengurus!.id);
             if (myTData) setMyTasks(myTData as any);
+            if (tError) console.error("Task Error:", tError);
 
             // Fetch Prokers for Active Division (or all if needed, but let's fetch all for this kabinet)
             const { data: prData } = await supabase.from("prokers").select("*").eq("kabinet_id", kabinet_id).order("created_at", { ascending: false });
