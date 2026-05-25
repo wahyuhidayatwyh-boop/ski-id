@@ -432,10 +432,10 @@ export default function DakwahOSPortal() {
                                     <p className="text-xs font-medium text-slate-600 mb-4 flex items-center gap-1"><Clock size={12}/> {new Date(eventToday.start_time).toLocaleTimeString("id-ID")}</p>
                                     
                                     {scanning ? (
-                                        <div className="w-full h-48 bg-slate-900 rounded-xl overflow-hidden relative">
+                                        <div className="w-full bg-white rounded-xl relative p-2 border border-slate-200">
                                             {verifying && <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center"><Loader2 className="animate-spin text-sky-500" size={24}/></div>}
-                                            <div id="reader" className="w-full h-full"></div>
-                                            <button onClick={() => setScanning(false)} className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs font-bold px-4 py-1.5 rounded-full z-20">Batal</button>
+                                            <div id="reader" className="w-full min-h-[300px]"></div>
+                                            <button onClick={() => setScanning(false)} className="w-full mt-3 bg-red-500 text-white text-sm font-bold py-2.5 rounded-xl z-20 hover:bg-red-600 transition-colors">Batalkan Scan</button>
                                         </div>
                                     ) : scanResult ? (
                                         <div className="bg-green-100 text-green-700 text-xs font-bold p-3 rounded-lg text-center border border-green-200">
