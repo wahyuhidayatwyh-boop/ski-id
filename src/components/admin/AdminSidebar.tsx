@@ -16,6 +16,7 @@ import {
     FileText,
     Menu,
     X,
+    Activity
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -37,6 +38,7 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
 
     const admin1NavItems: NavItem[] = [
         { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} />, href: `/admin/admin1/dashboard` },
+        { id: "dakwah-os", label: "Dakwah-OS", icon: <Activity size={20} />, href: `/admin/admin1/dakwah-os` },
         { id: "beranda", label: "Beranda", icon: <Home size={20} />, href: `/admin/admin1/beranda` },
         { id: "profil", label: "Profil", icon: <Users size={20} />, href: `/admin/admin1/profil` },
         { id: "acara", label: "Acara", icon: <Calendar size={20} />, href: `/admin/admin1/acara` },

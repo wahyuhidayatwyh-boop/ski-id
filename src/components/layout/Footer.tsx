@@ -47,7 +47,7 @@ export default function Footer() {
               <div className="mb-8">
                 <h4 className="font-bold text-[#0f172a] mb-6">Gabung</h4>
                 <ul className="flex flex-col gap-4 text-[13px] text-gray-600 font-medium">
-                  <li><Link href="/login" className="hover:text-[#0ea5e9]">Portal Anggota</Link></li>
+                  <li><Link href="/portal/login" className="hover:text-[#0ea5e9]">Portal Anggota</Link></li>
                   <li><Link href="/admin/login" className="hover:text-[#0ea5e9]">Admin Dashboard</Link></li>
                 </ul>
               </div>
@@ -85,7 +85,7 @@ export default function Footer() {
               <div>
                 <h4 className="font-bold text-[#0f172a] mb-6">Gabung</h4>
                 <ul className="flex flex-col gap-4 text-[13px] text-gray-600 font-medium">
-                  <li><Link href="/login" className="hover:text-[#0ea5e9]">Portal Anggota</Link></li>
+                  <li><Link href="/portal/login" className="hover:text-[#0ea5e9]">Portal Anggota</Link></li>
                   <li><Link href="/admin/login" className="hover:text-[#0ea5e9]">Admin Dashboard</Link></li>
                 </ul>
               </div>

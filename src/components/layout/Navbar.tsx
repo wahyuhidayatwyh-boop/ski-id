@@ -64,7 +64,7 @@ export default function Navbar() {
           {/* Right Action */}
           <div className="hidden lg:flex items-center pl-6 border-l border-gray-200 h-8 ml-4">
             <Link
-              href="/login"
+              href="/portal/login"
               className="text-[13px] font-semibold bg-[#0ea5e9] text-white px-5 py-2 rounded-full hover:bg-[#0284c7] transition-colors"
             >
               Portal Anggota
@@ -105,7 +105,7 @@ export default function Navbar() {
           </ul>
           <div className="mt-6 flex flex-col gap-3 pb-4">
             <Link
-              href="/login"
+              href="/portal/login"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-center font-semibold bg-[#0ea5e9] text-white py-2.5 rounded-full text-sm"
             >
