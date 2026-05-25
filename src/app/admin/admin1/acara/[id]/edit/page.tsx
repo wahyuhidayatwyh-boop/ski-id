@@ -9,7 +9,7 @@ import { Save, ArrowLeft, Loader2 } from "lucide-react";
 export default function EditEventPage() {
     const params = useParams();
     const router = useRouter();
-    const role = params.role as string;
+    const role = "admin1";
     const eventId = params.id as string;
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
