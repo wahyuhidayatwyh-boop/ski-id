@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 interface Kabinet { id: string; name: string; period: string; }
-interface Acara { id: string; title: string; start_time: string; location: string; status: string; jwt_secret_token: string; }
+interface Acara { id: string; title: string; start_time: string; location: string; status: string; jwt_secret_token: string; absensi_count?: number; }
 interface Evaluasi { pengurus_id: string; full_name: string; jabatan: string; divisi_name: string; total_acara: number; total_hadir: number; persentase_kehadiran: number; status_evaluasi: string; }
 
 export default function DakwahOSAdmin() {
@@ -50,8 +50,30 @@ export default function DakwahOSAdmin() {
     };
 
     const fetchAcaras = async (kabId: string) => {
-        const { data } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabId).order("start_time", { ascending: false });
-        if (data) setAcaras(data);
+        const { data: acaraData } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabId).order("start_time", { ascending: false });
+        if (acaraData) {
+            // Fetch absensi counts for each acara
+            const acarasWithCounts = await Promise.all(acaraData.map(async (acara) => {
+                const { count } = await supabase.from("absensi_digital").select("*", { count: "exact", head: true }).eq("acara_id", acara.id);
+                return { ...acara, absensi_count: count || 0 };
+            }));
+            setAcaras(acarasWithCounts);
+        }
+    };
+
+    const handleSelesaikanAcara = async (acaraId: string) => {
+        if (!confirm("Yakin ingin menyelesaikan acara ini? (Hanya acara selesai yang akan dihitung dalam KPI)")) return;
+        try {
+            const { error } = await supabase.from("acara_internal").update({ status: "completed" }).eq("id", acaraId);
+            if (error) throw error;
+            if (activeKabinet) {
+                fetchAcaras(activeKabinet.id);
+                fetchEvaluasi(activeKabinet.id); // Refresh KPI
+            }
+            alert("Acara berhasil diselesaikan!");
+        } catch (err: any) {
+            alert("Gagal: " + err.message);
+        }
     };
 
     const fetchEvaluasi = async (kabId: string) => {
@@ -157,14 +179,26 @@ export default function DakwahOSAdmin() {
                                             <div className="text-sm text-gray-500 space-y-1.5 mb-6">
                                                 <p className="flex items-center gap-2"><Clock size={14} className="text-sky-500"/> {new Date(acara.start_time).toLocaleString("id-ID")}</p>
                                                 {acara.location && <p className="flex items-center gap-2"><span className="text-sky-500 font-bold">@</span> {acara.location}</p>}
+                                                <p className="flex items-center gap-2"><Users size={14} className="text-sky-500"/> {acara.absensi_count || 0} orang hadir</p>
+                                                <p className="flex items-center gap-2 mt-2">
+                                                    Status: <span className={`px-2 py-0.5 rounded text-xs font-bold ${acara.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{acara.status}</span>
+                                                </p>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-col gap-2">
                                                 <button 
                                                     onClick={() => setSelectedQR(acara.jwt_secret_token)}
-                                                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
                                                 >
                                                     Tampilkan QR Code
                                                 </button>
+                                                {acara.status !== 'completed' && (
+                                                    <button 
+                                                        onClick={() => handleSelesaikanAcara(acara.id)}
+                                                        className="w-full bg-white hover:bg-gray-50 text-slate-900 border border-slate-200 font-bold py-2.5 rounded-xl text-sm transition-colors"
+                                                    >
+                                                        Tandai Selesai
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

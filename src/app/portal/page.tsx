@@ -73,7 +73,16 @@ export default function DakwahOSPortal() {
         if (activeTab === "absensi" && scanning) {
             scannerRef.current = new Html5QrcodeScanner(
                 "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                { 
+                    fps: 15, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    videoConstraints: {
+                        facingMode: "environment",
+                        width: { ideal: 1280, min: 640 },
+                        height: { ideal: 720, min: 480 }
+                    }
+                },
                 /* verbose= */ false
             );
             scannerRef.current.render(handleScanSuccess, handleScanFailure);
