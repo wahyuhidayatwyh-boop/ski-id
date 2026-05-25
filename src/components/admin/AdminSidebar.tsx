@@ -92,7 +92,7 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
             </div>
 
             <aside
-                className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 transition-all duration-300 z-30
+                className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 transition-all duration-300 z-50
                     ${collapsed ? "w-20" : "w-64"}
                     ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
                     lg:translate-x-0
