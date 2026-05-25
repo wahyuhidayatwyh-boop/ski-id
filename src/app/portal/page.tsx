@@ -200,7 +200,7 @@ export default function DakwahOSPortal() {
     const hadirCount = Object.values(attendedEvents).filter(s => s === 'hadir').length;
     const kpiPercentage = totalAcara === 0 ? 100 : Math.round((hadirCount / totalAcara) * 100);
     const kpiStatus = kpiPercentage >= 75 ? "AMAN / AKTIF" : "PERLU EVALUASI / KURANG DISIPLIN";
-    const eventToday = acaras.find(a => new Date(a.start_time).toDateString() === new Date().toDateString() && a.status === 'live');
+    const eventToday = acaras.find(a => new Date(a.start_time).toDateString() === new Date().toDateString() && a.status !== 'completed');
 
     // ACTIONS
     const handleLogout = async () => { await supabase.auth.signOut(); router.push("/portal/login"); };
