@@ -14,10 +14,11 @@ interface Product {
   image_url: string;
   category: string;
   stock: number;
+  contact_phone?: string;
 }
 
 export default function CatalogSection() {
-  const whatsappNumber = "6281234567890";
+  const fallbackWhatsappNumber = "6281234567890";
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +30,7 @@ export default function CatalogSection() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, description, price, image_url, category, stock")
+        .select("id, name, description, price, image_url, category, stock, contact_phone")
         .eq("status", "available")
         .order("created_at", { ascending: false })
         .limit(4);
@@ -43,9 +44,10 @@ export default function CatalogSection() {
     }
   };
 
-  const handleOrder = (productName: string) => {
-    const text = encodeURIComponent(`Halo Admin SKI, saya ingin memesan produk: ${productName}. Apakah stoknya masih tersedia?`);
-    window.open(`https://wa.me/${whatsappNumber}?text=${text}`, "_blank");
+  const handleOrder = (product: Product) => {
+    const text = encodeURIComponent(`Halo Admin SKI, saya ingin memesan produk: ${product.name}. Apakah stoknya masih tersedia?`);
+    const waNumber = product.contact_phone || fallbackWhatsappNumber;
+    window.open(`https://wa.me/${waNumber}?text=${text}`, "_blank");
   };
 
   const formatPrice = (price: number) => {
@@ -127,7 +129,7 @@ export default function CatalogSection() {
                 </div>
                 
                 <button
-                  onClick={() => handleOrder(product.name)}
+                  onClick={() => handleOrder(product)}
                   className="w-full mt-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
                 >
                   <ShoppingCart size={16} />

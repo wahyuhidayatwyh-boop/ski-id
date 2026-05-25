@@ -15,11 +15,12 @@ interface Product {
   image_url: string;
   category: string;
   status: "available" | "unavailable";
+  contact_phone?: string;
   created_at: string;
 }
 
 export default function KatalogClient() {
-  const whatsappNumber = "6281234567890";
+  const fallbackWhatsappNumber = "6281234567890";
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,9 +56,10 @@ export default function KatalogClient() {
   // Get unique categories dynamically from DB
   const categories = ["Semua", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
 
-  const handleOrder = (productName: string) => {
-    const text = encodeURIComponent(`Halo Admin SKI, saya ingin memesan produk: ${productName}. Apakah stoknya masih tersedia?`);
-    window.open(`https://wa.me/${whatsappNumber}?text=${text}`, "_blank");
+  const handleOrder = (product: Product) => {
+    const text = encodeURIComponent(`Halo Admin SKI, saya ingin memesan produk: ${product.name}. Apakah stoknya masih tersedia?`);
+    const waNumber = product.contact_phone || fallbackWhatsappNumber;
+    window.open(`https://wa.me/${waNumber}?text=${text}`, "_blank");
   };
 
   const filteredProducts = products.filter((product) => {
@@ -194,7 +196,7 @@ export default function KatalogClient() {
                   
                   {/* Order Button */}
                   <button
-                    onClick={() => handleOrder(product.name)}
+                    onClick={() => handleOrder(product)}
                     className="w-full mt-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
                   >
                     <ShoppingCart size={16} />

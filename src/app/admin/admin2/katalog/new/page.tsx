@@ -22,6 +22,7 @@ export default function NewProductPage() {
         image_url: "",
         category: "",
         status: "available" as "available" | "unavailable",
+        contact_phone: "",
     });
 
     const handleChange = (
@@ -286,6 +287,23 @@ export default function NewProductPage() {
                                         <option value="available">Tersedia</option>
                                         <option value="unavailable">Habis</option>
                                     </select>
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Nomor WhatsApp Admin (Untuk Pemesanan)
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        name="contact_phone"
+                                        value={formData.contact_phone}
+                                        onChange={handleChange}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                        placeholder="628123456789 (format: 628xxxxxxxxxx)"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Nomor ini akan digunakan saat pembeli klik tombol "Pesan via WA"
+                                    </p>
                                 </div>
                             </div>
                         </div>
