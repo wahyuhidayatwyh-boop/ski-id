@@ -340,7 +340,7 @@ export default function Admin2Katalog() {
                                                     <Edit size={16} />
                                                 </button>
                                                 <button
-                                                    onClick={() => window.open(`/katalog/${product.slug}`, "_blank")}
+                                                    onClick={() => window.open(`/katalog?search=${encodeURIComponent(product.name)}`, "_blank")}
                                                     className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                                     title="Lihat"
                                                 >
@@ -411,7 +411,7 @@ export default function Admin2Katalog() {
                                                 <Edit size={16} />
                                             </button>
                                             <button
-                                                onClick={() => window.open(`/katalog/${product.slug}`, "_blank")}
+                                                onClick={() => window.open(`/katalog?search=${encodeURIComponent(product.name)}`, "_blank")}
                                                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                                 title="Lihat"
                                             >

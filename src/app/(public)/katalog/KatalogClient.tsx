@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { ShoppingCart, Search, LayoutGrid, Tag, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
@@ -21,9 +22,12 @@ interface Product {
 
 export default function KatalogClient() {
   const fallbackWhatsappNumber = "6281234567890";
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") || "";
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;

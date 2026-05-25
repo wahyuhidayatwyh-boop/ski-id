@@ -237,7 +237,7 @@ export default function Admin1Acara() {
                                             Edit
                                         </button>
                                         <button
-                                            onClick={() => router.push(`/acara/${event.slug}`)}
+                                            onClick={() => router.push(`/acara/${event.id}`)}
                                             className="flex-1 flex items-center justify-center gap-1.5 p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-xs font-medium"
                                             title="Lihat"
                                         >
