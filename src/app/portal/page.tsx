@@ -372,7 +372,7 @@ export default function DakwahOSPortal() {
     const activeDivisionData = allDivisions.find(d => d.id === activeDivisiId);
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-20 font-sans">
+                        <div className="min-h-screen bg-slate-50 pb-20 font-sans overflow-x-hidden px-2 sm:px-4">
             {/* Navbar / Header */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
@@ -410,18 +410,19 @@ export default function DakwahOSPortal() {
                 
                 {/* Main Navigation Tabs */}
                 {!activeDivisiId && (
-                    <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 mb-8 w-fit mx-auto">
-                        {[
-                            { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
-                            { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
-                            { id: "vault", icon: <Archive size={18} />, label: "Vault Approval" }
-                        ].map((tab) => (
-                            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
-                                {tab.icon} <span>{tab.label}</span>
-                            </button>
-                        ))}
-                    </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-8 w-full max-w-md mx-auto">
+    {[
+        { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
+        { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
+        { id: "vault", icon: <Archive size={18} />, label: "Vault Approval" }
+    ].map((tab) => (
+        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center justify-center gap-2 py-3 px-4 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"} w-full`}
+        >
+            {tab.icon} <span>{tab.label}</span>
+        </button>
+    ))}
+</div>
                 )}
 
                 {/* VIEW 1: DASHBOARD UTAMA (Kondisi Saya) */}
@@ -429,7 +430,7 @@ export default function DakwahOSPortal() {
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                         
                         {/* Left Column: KTA & Absen Cepat */}
-                        <div className="lg:col-span-4 space-y-6">
+                        <div className="lg:col-span-4 md:col-span-12 space-y-6">
                             {/* KTA Digital */}
                             <div className="bg-gradient-to-br from-sky-600 to-blue-800 rounded-[2rem] p-6 shadow-2xl shadow-sky-900/20 text-white relative overflow-hidden group">
                                 <div className="absolute -top-20 -right-20 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl" />
@@ -513,7 +514,7 @@ export default function DakwahOSPortal() {
                         </div>
 
                         {/* Right Column: Tasks & KPI */}
-                        <div className="lg:col-span-8 space-y-6">
+                        <div className="lg:col-span-8 md:col-span-12 space-y-6">
                             
                             {/* KPI Widget */}
                             <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center gap-8">
@@ -664,7 +665,7 @@ export default function DakwahOSPortal() {
                         </div>
 
                         {/* Divisi Sub-Tabs */}
-                        <div className="flex border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
+                        <div className="flex flex-col sm:flex-row border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
                             {[
                                 { id: "profil", icon: <Info size={16}/>, label: "Profil Divisi" },
                                 { id: "proker", icon: <Briefcase size={16}/>, label: "Program Kerja" },
