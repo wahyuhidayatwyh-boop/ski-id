@@ -113,23 +113,33 @@ export default function DakwahOSAdmin() {
         if (!selectedAcaraForAbsensi) return;
         
         const existing = absensiData.find(a => a.pengurus_id === pengurus_id);
-        if (existing?.absensi_id) {
-            // Update existing
-            await supabase.from("absensi_digital").update({ status: newStatus }).eq("id", existing.absensi_id);
-        } else {
-            // Insert new
-            const { data } = await supabase.from("absensi_digital").insert([{
-                acara_id: selectedAcaraForAbsensi.id,
-                pengurus_id,
-                status: newStatus
-            }]).select().single();
-            if (data) {
-                setAbsensiData(prev => prev.map(a => a.pengurus_id === pengurus_id ? { ...a, absensi_id: data.id } : a));
-            }
-        }
         
-        // Update local state for immediate UI feedback
-        setAbsensiData(prev => prev.map(a => a.pengurus_id === pengurus_id ? { ...a, status: newStatus } : a));
+        try {
+            if (existing?.absensi_id) {
+                // Update existing
+                const { error } = await supabase.from("absensi_digital").update({ status: newStatus }).eq("id", existing.absensi_id);
+                if (error) throw error;
+            } else {
+                // Insert new
+                const { data, error } = await supabase.from("absensi_digital").insert([{
+                    acara_id: selectedAcaraForAbsensi.id,
+                    pengurus_id,
+                    status: newStatus
+                }]).select().single();
+                
+                if (error) throw error;
+                
+                if (data) {
+                    setAbsensiData(prev => prev.map(a => a.pengurus_id === pengurus_id ? { ...a, absensi_id: data.id } : a));
+                }
+            }
+            
+            // Update local state for immediate UI feedback
+            setAbsensiData(prev => prev.map(a => a.pengurus_id === pengurus_id ? { ...a, status: newStatus } : a));
+        } catch (error: any) {
+            console.error("Gagal mengupdate absensi:", error);
+            alert(`Gagal menyimpan absensi: ${error.message}`);
+        }
     };
 
     const handleCreateAcara = async (e: React.FormEvent) => {
