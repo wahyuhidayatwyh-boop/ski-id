@@ -394,6 +394,9 @@ export default function DakwahOSAdmin() {
                                 
                                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 inline-block mb-8">
                                     <QRCodeSVG value={`${baseUrl}/portal?scan=${selectedQR}`} size={250} level="H" includeMargin={false} fgColor="#0f172a" />
+                                    <p className="mt-4 text-xs text-gray-500 break-all font-mono bg-gray-100 p-2 rounded-lg border border-gray-200">
+                                        URL SCAN: {baseUrl}/portal?scan={selectedQR}
+                                    </p>
                                 </div>
                                 
                                 <div>
