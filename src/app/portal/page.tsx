@@ -490,7 +490,11 @@ export default function DakwahOSPortal() {
                                         {new Date(eventToday.start_time).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • {new Date(eventToday.start_time).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                     
-                                    {scanning ? (
+                                    {attendedEvents[eventToday.id] ? (
+                                        <div className="bg-green-100 text-green-700 text-sm font-bold p-3 rounded-xl text-center border border-green-200 flex items-center justify-center gap-2">
+                                            <CheckCircle size={18} /> Anda sudah absen hadir
+                                        </div>
+                                    ) : scanning ? (
                                         <div className="w-full bg-white rounded-xl relative p-2 border border-slate-200">
                                             {verifying && <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center"><Loader2 className="animate-spin text-sky-500" size={24}/></div>}
                                             <div id="reader" className="w-full min-h-[300px]"></div>
