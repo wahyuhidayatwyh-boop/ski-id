@@ -357,7 +357,8 @@ export default function DakwahOSPortal() {
                         
                         setScanResult(`Berhasil absen untuk: ${acara.title}`);
                         fetchDashboardData(selectedKabinetId);
-                    } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
+                        // Remove the ?scan= query param while staying on the same page
+                        router.replace(window.location.pathname, undefined, { shallow: true });                    } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
                     finally { setVerifying(false); }
                 };
                 processAutoScan();
