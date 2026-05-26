@@ -28,7 +28,11 @@ interface Product {
     slug: string;
     description: string;
     price: number;
+    cost_price: number;
     stock: number;
+    min_stock: number;
+    production_count: number;
+    sold_count: number;
     image_url: string;
     category: string;
     status: "available" | "unavailable";

@@ -23,7 +23,11 @@ export default function EditProductPage() {
         slug: "",
         description: "",
         price: 0,
+        cost_price: 0,
         stock: 0,
+        min_stock: 5,
+        production_count: 0,
+        sold_count: 0,
         image_url: "",
         category: "",
         status: "available" as "available" | "unavailable",
@@ -51,7 +55,11 @@ export default function EditProductPage() {
                     slug: data.slug || "",
                     description: data.description || "",
                     price: data.price || 0,
+                    cost_price: data.cost_price || 0,
                     stock: data.stock || 0,
+                    min_stock: data.min_stock || 5,
+                    production_count: data.production_count || 0,
+                    sold_count: data.sold_count || 0,
                     image_url: data.image_url || "",
                     category: data.category || "",
                     status: data.status || "available",
@@ -291,7 +299,7 @@ export default function EditProductPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Harga (Rp) *
+                                        Harga Jual (Rp) *
                                     </label>
                                     <input
                                         type="number"
@@ -303,10 +311,25 @@ export default function EditProductPage() {
                                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                                     />
                                 </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Harga Modal (Rp) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="cost_price"
+                                        value={formData.cost_price}
+                                        onChange={handleChange}
+                                        required
+                                        min="0"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                    />
+                                </div>
 
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Stok *
+                                        Total Stok Saat Ini *
                                     </label>
                                     <input
                                         type="number"
@@ -314,6 +337,35 @@ export default function EditProductPage() {
                                         value={formData.stock}
                                         onChange={handleChange}
                                         required
+                                        min="0"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Minimum Stok (Peringatan)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="min_stock"
+                                        value={formData.min_stock}
+                                        onChange={handleChange}
+                                        required
+                                        min="0"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Jumlah Produksi Awal
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="production_count"
+                                        value={formData.production_count}
+                                        onChange={handleChange}
                                         min="0"
                                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                                     />

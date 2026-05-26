@@ -49,7 +49,10 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
 
     const admin2NavItems: NavItem[] = [
         { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} />, href: `/admin/admin2/dashboard` },
-        { id: "katalog", label: "Katalog", icon: <Package size={20} />, href: `/admin/admin2/katalog` },
+        { id: "katalog", label: "Katalog & Stok", icon: <Package size={20} />, href: `/admin/admin2/katalog` },
+        { id: "penjualan", label: "Penjualan (POS)", icon: <Activity size={20} />, href: `/admin/admin2/penjualan` },
+        { id: "pengeluaran", label: "Pengeluaran", icon: <FileText size={20} />, href: `/admin/admin2/pengeluaran` },
+        { id: "laporan", label: "Laporan Keuangan", icon: <FileText size={20} />, href: `/admin/admin2/laporan` },
     ];
 
     const navItems = role === "admin1" ? admin1NavItems : admin2NavItems;
