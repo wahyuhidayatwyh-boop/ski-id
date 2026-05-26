@@ -10,7 +10,8 @@ import {
     Loader2,
     Calendar,
     Search,
-    Filter
+    Filter,
+    Activity
 } from "lucide-react";
 
 export default function Admin2Laporan() {
