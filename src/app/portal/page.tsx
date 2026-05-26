@@ -292,8 +292,14 @@ export default function DakwahOSPortal() {
                 if (verifying) return;
                 setScanning(false);
                 setVerifying(true);
+                
+                let token = decodedText;
+                if (decodedText.includes('?scan=')) {
+                    token = decodedText.split('?scan=')[1];
+                }
+                
                 try {
-                    const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", decodedText).eq("status", "live").single();
+                    const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", token).eq("status", "live").single();
                     if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
                     
                     const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus!.id, status: 'hadir' }]);
@@ -332,6 +338,33 @@ export default function DakwahOSPortal() {
             }
         };
     }, [scanning, isReadOnly]);
+
+    // AUTO-SCAN FROM URL
+    useEffect(() => {
+        if (typeof window !== 'undefined' && pengurus && !isReadOnly && !verifying && selectedKabinetId) {
+            const params = new URLSearchParams(window.location.search);
+            const scanParam = params.get('scan');
+            if (scanParam) {
+                const processAutoScan = async () => {
+                    setVerifying(true);
+                    try {
+                        const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", scanParam).eq("status", "live").single();
+                        if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
+                        
+                        const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus.id, status: 'hadir' }]);
+                        if (insertError && insertError.code !== '23505') throw insertError;
+                        
+                        setScanResult(`Berhasil absen untuk: ${acara.title}`);
+                        fetchDashboardData(selectedKabinetId);
+                    } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
+                    finally { setVerifying(false); }
+                    
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                };
+                processAutoScan();
+            }
+        }
+    }, [pengurus, isReadOnly, selectedKabinetId]);
 
     if (loading && !pengurus) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-sky-500" size={40} /></div>;
     if (!pengurus) return null;
@@ -451,7 +484,10 @@ export default function DakwahOSPortal() {
                                 <div className="bg-sky-50 border-2 border-sky-500 rounded-2xl p-5 shadow-lg shadow-sky-500/20 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-bl-lg animate-pulse">LIVE HARI INI</div>
                                     <h3 className="font-black text-slate-900 mb-1">{eventToday.title}</h3>
-                                    <p className="text-xs font-medium text-slate-600 mb-4 flex items-center gap-1"><Clock size={12}/> {new Date(eventToday.start_time).toLocaleTimeString("id-ID")}</p>
+                                    <p className="text-xs font-medium text-slate-600 mb-4 flex items-center gap-1">
+                                        <Clock size={12}/> 
+                                        {new Date(eventToday.start_time).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • {new Date(eventToday.start_time).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
                                     
                                     {scanning ? (
                                         <div className="w-full bg-white rounded-xl relative p-2 border border-slate-200">

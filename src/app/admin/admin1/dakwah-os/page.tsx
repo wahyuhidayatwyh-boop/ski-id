@@ -151,7 +151,9 @@ export default function DakwahOSAdmin() {
         
         try {
             const { error } = await supabase.from("acara_internal").insert([{
-                ...newAcara,
+                title: newAcara.title,
+                start_time: new Date(newAcara.start_time).toISOString(),
+                location: newAcara.location,
                 kabinet_id: activeKabinet.id,
                 jwt_secret_token: randomToken
             }]);
@@ -238,7 +240,7 @@ export default function DakwahOSAdmin() {
                                             <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-900"></div>
                                             <h3 className="font-bold text-lg text-gray-900 mb-1">{acara.title}</h3>
                                             <div className="text-sm text-gray-500 space-y-1.5 mb-6">
-                                                <p className="flex items-center gap-2"><Clock size={14} className="text-sky-500"/> {new Date(acara.start_time).toLocaleString("id-ID")}</p>
+                                                <p className="flex items-center gap-2"><Clock size={14} className="text-sky-500"/> {new Date(acara.start_time).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })} • {new Date(acara.start_time).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })}</p>
                                                 {acara.location && <p className="flex items-center gap-2"><span className="text-sky-500 font-bold">@</span> {acara.location}</p>}
                                                 <p className="flex items-center gap-2"><Users size={14} className="text-sky-500"/> {acara.absensi_count || 0} orang hadir</p>
                                                 <p className="flex items-center gap-2 mt-2">
@@ -388,7 +390,7 @@ export default function DakwahOSAdmin() {
                                 <p className="text-slate-500 mb-8 max-w-xs mx-auto">Gunakan Scanner di Portal Anggota untuk mencatatkan kehadiran secara otomatis.</p>
                                 
                                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 inline-block mb-8">
-                                    <QRCodeSVG value={selectedQR} size={250} level="H" includeMargin={false} fgColor="#0f172a" />
+                                    <QRCodeSVG value={`https://skitelkompurwokerto.site/portal?scan=${selectedQR}`} size={250} level="H" includeMargin={false} fgColor="#0f172a" />
                                 </div>
                                 
                                 <div>
