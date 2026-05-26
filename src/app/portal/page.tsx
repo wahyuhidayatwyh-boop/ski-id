@@ -64,7 +64,7 @@ export default function DakwahOSPortal() {
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [verifying, setVerifying] = useState(false);
-    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+    const scannerRef = useRef<Html5Qrcode | null>(null);
 
     // Upload State
     const [isUploading, setIsUploading] = useState(false);
