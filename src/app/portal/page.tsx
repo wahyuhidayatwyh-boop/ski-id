@@ -359,8 +359,6 @@ export default function DakwahOSPortal() {
                         fetchDashboardData(selectedKabinetId);
                     } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
                     finally { setVerifying(false); }
-                    
-                    window.history.replaceState({}, document.title, window.location.pathname);
                 };
                 processAutoScan();
             }
