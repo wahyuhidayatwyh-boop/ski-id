@@ -35,8 +35,10 @@ export default function DakwahOSAdmin() {
     // Evaluasi State
     const [evaluasiList, setEvaluasiList] = useState<Evaluasi[]>([]);
     const [evalFilter, setEvalFilter] = useState("ALL");
+    const [baseUrl, setBaseUrl] = useState("");
 
     useEffect(() => {
+        setBaseUrl(typeof window !== "undefined" ? window.location.origin : "");
         fetchInitialData();
     }, []);
 
@@ -153,6 +155,7 @@ export default function DakwahOSAdmin() {
             const { error } = await supabase.from("acara_internal").insert([{
                 title: newAcara.title,
                 start_time: new Date(newAcara.start_time).toISOString(),
+                end_time: new Date(newAcara.end_time).toISOString(),
                 location: newAcara.location,
                 kabinet_id: activeKabinet.id,
                 jwt_secret_token: randomToken
@@ -390,7 +393,7 @@ export default function DakwahOSAdmin() {
                                 <p className="text-slate-500 mb-8 max-w-xs mx-auto">Gunakan Scanner di Portal Anggota untuk mencatatkan kehadiran secara otomatis.</p>
                                 
                                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 inline-block mb-8">
-                                    <QRCodeSVG value={`https://skitelkompurwokerto.site/portal?scan=${selectedQR}`} size={250} level="H" includeMargin={false} fgColor="#0f172a" />
+                                    <QRCodeSVG value={`${baseUrl}/portal?scan=${selectedQR}`} size={250} level="H" includeMargin={false} fgColor="#0f172a" />
                                 </div>
                                 
                                 <div>
