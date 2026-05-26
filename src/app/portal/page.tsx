@@ -8,7 +8,7 @@ import {
     Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import Image from "next/image";
 
 // Interfaces
@@ -284,31 +284,53 @@ export default function DakwahOSPortal() {
 
     // SCANNER
     useEffect(() => {
+        let html5QrCode: Html5Qrcode | null = null;
         if (scanning && !isReadOnly) {
-            scannerRef.current = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
-            scannerRef.current.render(
-                async (decodedText) => {
-                    if (verifying) return;
-                    setScanning(false);
-                    setVerifying(true);
-                    try {
-                        const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", decodedText).eq("status", "live").single();
-                        if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
-                        
-                        const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus!.id, status: 'hadir' }]);
-                        if (insertError && insertError.code !== '23505') throw insertError;
-                        
-                        setScanResult(`Berhasil absen untuk: ${acara.title}`);
-                        fetchDashboardData(selectedKabinetId);
-                    } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
-                    finally { setVerifying(false); }
-                }, () => {}
-            );
+            html5QrCode = new Html5Qrcode("reader");
+            
+            const onScanSuccess = async (decodedText: string) => {
+                if (verifying) return;
+                setScanning(false);
+                setVerifying(true);
+                try {
+                    const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", decodedText).eq("status", "live").single();
+                    if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
+                    
+                    const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus!.id, status: 'hadir' }]);
+                    if (insertError && insertError.code !== '23505') throw insertError;
+                    
+                    setScanResult(`Berhasil absen untuk: ${acara.title}`);
+                    fetchDashboardData(selectedKabinetId);
+                } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
+                finally { setVerifying(false); }
+                
+                if (html5QrCode) {
+                    html5QrCode.stop().catch(console.error);
+                }
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                () => {} // ignore errors (like no qr code found in frame)
+            ).catch(err => {
+                console.error("Camera start failed:", err);
+                alert("Gagal mengakses kamera. Pastikan browser diizinkan mengakses kamera.");
+                setScanning(false);
+            });
+            
+            scannerRef.current = html5QrCode as any;
         } else if (scannerRef.current) {
-            scannerRef.current.clear().catch(console.error);
+            (scannerRef.current as any as Html5Qrcode).stop().catch(console.error);
             scannerRef.current = null;
         }
-        return () => { if (scannerRef.current) scannerRef.current.clear().catch(console.error); };
+        
+        return () => {
+            if (html5QrCode) {
+                html5QrCode.stop().catch(console.error);
+            }
+        };
     }, [scanning, isReadOnly]);
 
     if (loading && !pengurus) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-sky-500" size={40} /></div>;
