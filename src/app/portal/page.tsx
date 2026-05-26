@@ -299,8 +299,9 @@ export default function DakwahOSPortal() {
                 }
                 
                 try {
-                    const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", token).eq("status", "live").single();
-                    if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
+                    const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title, status").eq("jwt_secret_token", token).single();
+                    if (findError || !acara) throw new Error("QR Code tidak valid atau acara tidak ditemukan!");
+                    if (acara.status === "completed") throw new Error("Acara ini sudah selesai, absensi ditutup!");
                     
                     const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus!.id, status: 'hadir' }]);
                     if (insertError && insertError.code !== '23505') throw insertError;
@@ -309,10 +310,6 @@ export default function DakwahOSPortal() {
                     fetchDashboardData(selectedKabinetId);
                 } catch (error: any) { setScanResult(`Gagal: ${error.message}`); } 
                 finally { setVerifying(false); }
-                
-                if (html5QrCode) {
-                    html5QrCode.stop().catch(console.error);
-                }
             };
 
             html5QrCode.start(
@@ -328,12 +325,15 @@ export default function DakwahOSPortal() {
             
             scannerRef.current = html5QrCode as any;
         } else if (scannerRef.current) {
-            (scannerRef.current as any as Html5Qrcode).stop().catch(console.error);
+            const scanner = scannerRef.current as any as Html5Qrcode;
+            if (scanner.isScanning) {
+                scanner.stop().catch(console.error);
+            }
             scannerRef.current = null;
         }
         
         return () => {
-            if (html5QrCode) {
+            if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().catch(console.error);
             }
         };
@@ -348,8 +348,9 @@ export default function DakwahOSPortal() {
                 const processAutoScan = async () => {
                     setVerifying(true);
                     try {
-                        const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title").eq("jwt_secret_token", scanParam).eq("status", "live").single();
-                        if (findError || !acara) throw new Error("QR Code tidak valid atau acara belum LIVE!");
+                        const { data: acara, error: findError } = await supabase.from("acara_internal").select("id, title, status").eq("jwt_secret_token", scanParam).single();
+                        if (findError || !acara) throw new Error("QR Code tidak valid atau acara tidak ditemukan!");
+                        if (acara.status === "completed") throw new Error("Acara ini sudah selesai, absensi ditutup!");
                         
                         const { error: insertError } = await supabase.from("absensi_digital").insert([{ acara_id: acara.id, pengurus_id: pengurus.id, status: 'hadir' }]);
                         if (insertError && insertError.code !== '23505') throw insertError;
