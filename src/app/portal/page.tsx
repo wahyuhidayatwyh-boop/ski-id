@@ -13,7 +13,7 @@ import Image from "next/image";
 
 // Interfaces
 interface Pengurus { id: string; full_name: string; jabatan: string; role_level: string; photo_url: string; phone_number: string; division_id: string; kabinet_id: string; divisions: { id: string, name: string, description: string, icon: string, hero_image_url: string, vision: string, mission: string }; kabinets: { name: string, period: string } }
-interface Acara { id: string; proker_id: string; title: string; description: string; start_time: string; location: string; status: string; jwt_secret_token: string; attachment_url?: string; meeting_link?: string; prokers?: { name: string } }
+interface Acara { id: string; proker_id?: string; title: string; description: string; start_time: string; end_time?: string; location: string; status: string; jwt_secret_token: string; attachment_url?: string; meeting_link?: string; }
 interface Proker { id: string; division_id: string; name: string; description: string; image_url: string; status: string; created_at: string; }
 interface Task { id: string; proker_id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string }; prokers?: { name: string } }
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
@@ -141,7 +141,7 @@ export default function DakwahOSPortal() {
             }
 
             // Fetch Acara
-            const { data: aData, error: aError } = await supabase.from("acara_internal").select("*, prokers(name)").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
+            const { data: aData, error: aError } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
             if (aData) setAcaras(aData as any);
             if (aError) console.error("Acara Error:", aError);
 
@@ -303,16 +303,25 @@ export default function DakwahOSPortal() {
         e.preventDefault();
         if (!acaraForm.title || isReadOnly) return;
         
-        const payload = { ...acaraForm };
-        if (payload.proker_id === "") {
-            payload.proker_id = null as any;
-        }
+        // Build clean payload - only include fields that have values
+        const payload: Record<string, any> = {
+            title: acaraForm.title,
+            description: acaraForm.description || null,
+            start_time: acaraForm.start_time || null,
+            end_time: acaraForm.end_time || null,
+            location: acaraForm.location || null,
+            status: acaraForm.status,
+        };
+        // Only include optional fields if they have actual values
+        if (acaraForm.proker_id) payload.proker_id = acaraForm.proker_id;
+        if (acaraForm.attachment_url) payload.attachment_url = acaraForm.attachment_url;
+        if (acaraForm.meeting_link) payload.meeting_link = acaraForm.meeting_link;
 
         if (editingAcaraId) {
             const { error } = await supabase.from("acara_internal").update(payload).eq("id", editingAcaraId);
             if (error) { alert("Gagal update acara: " + error.message); return; }
         } else {
-            const jwt_secret_token = Math.random().toString(36).substring(2, 15);
+            const jwt_secret_token = "SKI-" + Math.random().toString(36).substring(2, 15) + "-" + Date.now();
             const { error } = await supabase.from("acara_internal").insert([{ ...payload, kabinet_id: selectedKabinetId, jwt_secret_token }]);
             if (error) { alert("Gagal membuat acara: " + error.message); return; }
         }
