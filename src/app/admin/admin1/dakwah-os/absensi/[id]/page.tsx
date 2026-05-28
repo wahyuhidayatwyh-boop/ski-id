@@ -150,14 +150,55 @@ export default function AbsensiManualPage() {
                             </div>
                         </div>
 
-                        {/* Print Header */}
-                        <div className="hidden print:block mb-8 text-center border-b-2 border-black pb-4">
-                            <h1 className="text-2xl font-black uppercase">Laporan Kehadiran</h1>
-                            <h2 className="text-xl font-bold mt-1">{acara.title}</h2>
-                            <p className="text-sm mt-2">
-                                Tanggal: {new Date(acara.start_time).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' })} <br/>
-                                Lokasi: {acara.location || '-'}
-                            </p>
+                        {/* Print Header - Kop Surat Resmi */}
+                        <div className="hidden print:block mb-6">
+                            {/* Kop Surat */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '3px solid black', paddingBottom: '12px', marginBottom: '16px' }}>
+                                {/* Logo Telkom (kiri) */}
+                                <img src="/LogoTup.png" alt="Logo Telkom University Purwokerto" style={{ height: '80px', width: 'auto', objectFit: 'contain' }} />
+                                
+                                {/* Teks Tengah */}
+                                <div style={{ textAlign: 'center', flex: 1, padding: '0 16px' }}>
+                                    <p style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 2px 0', letterSpacing: '1px' }}>Unit Kegiatan Mahasiswa</p>
+                                    <p style={{ fontFamily: 'serif', fontSize: '28px', fontWeight: 'bold', fontStyle: 'italic', margin: '0 0 2px 0', lineHeight: 1.1 }}>Sentral Kerohanian Islam</p>
+                                    <p style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '1px' }}>Telkom University Purwokerto</p>
+                                    <p style={{ fontSize: '10px', margin: '0', color: '#333' }}>Jl. DI. Panjaitan No.128 Purwokerto 53147</p>
+                                    <p style={{ fontSize: '10px', margin: '0', color: '#333' }}>Telp. 082383600586 | Email : ski@ittelkom-pwt.ac.id</p>
+                                </div>
+                                
+                                {/* Logo SKI (kanan) */}
+                                <img src="/Logo SKI TEL-U P.png" alt="Logo SKI TEL-U Purwokerto" style={{ height: '80px', width: 'auto', objectFit: 'contain' }} />
+                            </div>
+
+                            {/* Judul Dokumen */}
+                            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                                <p style={{ fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 4px 0' }}>Daftar Hadir Pengurus</p>
+                                <p style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 4px 0' }}>UKM Sentral Kerohanian Islam Periode 2025/2026</p>
+                                <p style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0' }}>Telkom University Purwokerto</p>
+                            </div>
+
+                            {/* Info Kegiatan */}
+                            <div style={{ fontSize: '12px', marginBottom: '16px', paddingLeft: '8px' }}>
+                                <table style={{ borderCollapse: 'collapse' }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ padding: '2px 0', width: '80px' }}>Kegiatan</td>
+                                            <td style={{ padding: '2px 4px' }}>:</td>
+                                            <td style={{ padding: '2px 0', fontWeight: 'bold' }}>{acara.title}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: '2px 0' }}>Tanggal</td>
+                                            <td style={{ padding: '2px 4px' }}>:</td>
+                                            <td style={{ padding: '2px 0', fontWeight: 'bold' }}>{new Date(acara.start_time).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: '2px 0' }}>Tempat</td>
+                                            <td style={{ padding: '2px 4px' }}>:</td>
+                                            <td style={{ padding: '2px 0', fontWeight: 'bold' }}>{acara.location || '-'}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden print:border-none print:shadow-none print:rounded-none">
