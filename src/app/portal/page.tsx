@@ -64,7 +64,7 @@ export default function DakwahOSPortal() {
     // Acara Form States
     const [showAcaraForm, setShowAcaraForm] = useState(false);
     const [editingAcaraId, setEditingAcaraId] = useState<string | null>(null);
-    const [acaraForm, setAcaraForm] = useState({ title: "", description: "", start_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
+    const [acaraForm, setAcaraForm] = useState({ title: "", description: "", start_time: "", end_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
 
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<string | null>(null);
@@ -319,7 +319,7 @@ export default function DakwahOSPortal() {
         
         setShowAcaraForm(false);
         setEditingAcaraId(null);
-        setAcaraForm({ title: "", description: "", start_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
+        setAcaraForm({ title: "", description: "", start_time: "", end_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
         fetchDashboardData(selectedKabinetId);
     };
 
@@ -676,7 +676,7 @@ export default function DakwahOSPortal() {
                                 <p className="text-sm font-medium text-slate-500 mt-1">Pantau seluruh kegiatan organisasi dan rapat mendatang.</p>
                             </div>
                             {!isReadOnly && (
-                                <button onClick={() => { setShowAcaraForm(!showAcaraForm); setEditingAcaraId(null); setAcaraForm({ title: "", description: "", start_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" }); }} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                <button onClick={() => { setShowAcaraForm(!showAcaraForm); setEditingAcaraId(null); setAcaraForm({ title: "", description: "", start_time: "", end_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" }); }} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
                                     {showAcaraForm ? <X size={16} /> : <Plus size={16} />} {showAcaraForm ? "Batal" : "Tambah Acara"}
                                 </button>
                             )}
@@ -694,7 +694,16 @@ export default function DakwahOSPortal() {
                                         </select>
                                     </div>
                                     <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                                        <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.start_time ? new Date(acaraForm.start_time).toISOString().slice(0,16) : ""} onChange={e => setAcaraForm({...acaraForm, start_time: new Date(e.target.value).toISOString()})} />
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Waktu Mulai</label>
+                                            <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.start_time ? new Date(acaraForm.start_time).toISOString().slice(0,16) : ""} onChange={e => setAcaraForm({...acaraForm, start_time: new Date(e.target.value).toISOString()})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Waktu Selesai</label>
+                                            <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.end_time ? new Date(acaraForm.end_time).toISOString().slice(0,16) : ""} onChange={e => setAcaraForm({...acaraForm, end_time: new Date(e.target.value).toISOString()})} />
+                                        </div>
+                                    </div>
+                                    <div className="mb-4">
                                         <input required type="text" placeholder="Lokasi (misal: Ruang 101, Online, Gmeet)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.location} onChange={e => setAcaraForm({...acaraForm, location: e.target.value})} />
                                     </div>
                                     <div className="grid sm:grid-cols-2 gap-4 mb-4">
@@ -741,7 +750,7 @@ export default function DakwahOSPortal() {
                                             
                                             {!isReadOnly && (
                                                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                    <button onClick={() => { setShowAcaraForm(true); setEditingAcaraId(acara.id); setAcaraForm({ title: acara.title, description: acara.description || "", start_time: acara.start_time, location: acara.location || "", proker_id: acara.proker_id, status: acara.status, attachment_url: acara.attachment_url || "", meeting_link: acara.meeting_link || "" }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white p-2 rounded-lg text-sky-500 hover:bg-sky-50 shadow-sm border border-slate-200"><Edit size={14} /></button>
+                                                    <button onClick={() => { setShowAcaraForm(true); setEditingAcaraId(acara.id); setAcaraForm({ title: acara.title, description: acara.description || "", start_time: acara.start_time, end_time: (acara as any).end_time || acara.start_time, location: acara.location || "", proker_id: acara.proker_id || "", status: acara.status, attachment_url: acara.attachment_url || "", meeting_link: acara.meeting_link || "" }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white p-2 rounded-lg text-sky-500 hover:bg-sky-50 shadow-sm border border-slate-200"><Edit size={14} /></button>
                                                     <button onClick={() => deleteAcara(acara.id)} className="bg-white p-2 rounded-lg text-red-500 hover:bg-red-50 shadow-sm border border-slate-200"><Trash2 size={14} /></button>
                                                 </div>
                                             )}
