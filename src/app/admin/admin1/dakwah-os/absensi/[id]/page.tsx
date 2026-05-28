@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { 
@@ -11,10 +11,11 @@ import Link from "next/link";
 
 interface Acara { id: string; title: string; start_time: string; location: string; status: string; kabinet_id: string; }
 
-export default function AbsensiManualPage({ params }: { params: { id: string } }) {
+export default function AbsensiManualPage() {
     const role = "admin1";
     const router = useRouter();
-    const acaraId = params.id;
+    const params = useParams<{ id: string }>();
+    const acaraId = params?.id;
     
     const [loading, setLoading] = useState(true);
     const [acara, setAcara] = useState<Acara | null>(null);
