@@ -375,23 +375,26 @@ export default function DakwahOSPortal() {
                         <div className="min-h-screen bg-slate-50 pb-20 font-sans overflow-x-hidden px-2 sm:px-4">
             {/* Navbar / Header */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-                    <div className="flex items-center gap-3">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row justify-between items-center gap-3 sm:h-16 sm:py-0">
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-start">
                         <img src={LOGO_URL} alt="Logo SKI" className="w-10 h-10 object-contain drop-shadow-sm" />
-                        <div>
+                        <div className="flex-1">
                             <h1 className="font-black text-slate-900 leading-tight tracking-tight text-lg">Dakwah-OS</h1>
                             <p className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Enterprise Management</p>
                         </div>
+                        <button onClick={handleLogout} className="sm:hidden text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors">
+                            <LogOut size={20} />
+                        </button>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center w-full sm:w-auto gap-4">
                         <select 
                             value={selectedKabinetId} 
                             onChange={(e) => { setSelectedKabinetId(e.target.value); setActiveDivisiId(null); setActiveTab("dashboard"); }}
-                            className={`text-sm font-bold border-none rounded-xl px-4 py-2 focus:ring-2 focus:ring-sky-500 cursor-pointer transition-colors shadow-sm ${isReadOnly ? 'bg-amber-100 text-amber-800' : 'bg-slate-900 text-white'}`}
+                            className={`w-full sm:w-auto text-xs sm:text-sm font-bold border-none rounded-xl px-4 py-2 focus:ring-2 focus:ring-sky-500 cursor-pointer transition-colors shadow-sm ${isReadOnly ? 'bg-amber-100 text-amber-800' : 'bg-slate-900 text-white'}`}
                         >
                             {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} {k.period} {k.is_active ? '(Aktif)' : '(Arsip)'}</option>)}
                         </select>
-                        <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors">
+                        <button onClick={handleLogout} className="hidden sm:block text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors">
                             <LogOut size={20} />
                         </button>
                     </div>

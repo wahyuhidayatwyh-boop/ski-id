@@ -7,8 +7,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { 
     Calendar, Users, Activity, FileText, Plus, 
-    CheckCircle, AlertCircle, Clock, Search, X, Loader2
+    CheckCircle, AlertCircle, Clock, Search, X, Loader2, Trash2
 } from "lucide-react";
+import Link from "next/link";
 
 interface Kabinet { id: string; name: string; period: string; }
 interface Acara { id: string; title: string; start_time: string; location: string; status: string; jwt_secret_token: string; absensi_count?: number; }
@@ -28,10 +29,7 @@ export default function DakwahOSAdmin() {
     const [newAcara, setNewAcara] = useState({ title: "", start_time: "", end_time: "", location: "" });
     const [selectedQR, setSelectedQR] = useState<string | null>(null);
     
-    // Absensi Modal State
-    const [selectedAcaraForAbsensi, setSelectedAcaraForAbsensi] = useState<Acara | null>(null);
-    const [absensiData, setAbsensiData] = useState<any[]>([]); // { pengurus_id, full_name, status, absensi_id }
-    
+
     // Evaluasi State
     const [evaluasiList, setEvaluasiList] = useState<Evaluasi[]>([]);
     const [evalFilter, setEvalFilter] = useState("ALL");
@@ -87,60 +85,18 @@ export default function DakwahOSAdmin() {
         if (data) setEvaluasiList(data);
     };
 
-    const handleOpenAbsensi = async (acara: Acara) => {
-        if (!activeKabinet) return;
-        setLoading(true);
-        // Fetch all pengurus in this kabinet
-        const { data: pengurus } = await supabase.from("pengurus").select("id, full_name").eq("kabinet_id", activeKabinet.id);
-        // Fetch existing absensi for this acara
-        const { data: absensi } = await supabase.from("absensi_digital").select("*").eq("acara_id", acara.id);
-        
-        if (pengurus) {
-            const absMap: Record<string, any> = {};
-            absensi?.forEach(a => absMap[a.pengurus_id] = a);
-            
-            const combined = pengurus.map(p => ({
-                pengurus_id: p.id,
-                full_name: p.full_name,
-                status: absMap[p.id]?.status || null,
-                absensi_id: absMap[p.id]?.id || null
-            }));
-            setAbsensiData(combined);
-            setSelectedAcaraForAbsensi(acara);
-        }
-        setLoading(false);
-    };
-
-    const handleUpdateAbsensiStatus = async (pengurus_id: string, newStatus: string) => {
-        if (!selectedAcaraForAbsensi) return;
-        
-        const existing = absensiData.find(a => a.pengurus_id === pengurus_id);
-        
+    const handleDeleteAcara = async (acaraId: string) => {
+        if (!confirm("Yakin ingin menghapus acara ini? Semua data terkait absensi juga akan terhapus.")) return;
         try {
-            if (existing?.absensi_id) {
-                // Update existing
-                const { error } = await supabase.from("absensi_digital").update({ status: newStatus }).eq("id", existing.absensi_id);
-                if (error) throw error;
-            } else {
-                // Insert new
-                const { data, error } = await supabase.from("absensi_digital").insert([{
-                    acara_id: selectedAcaraForAbsensi.id,
-                    pengurus_id,
-                    status: newStatus
-                }]).select().single();
-                
-                if (error) throw error;
-                
-                if (data) {
-                    setAbsensiData(prev => prev.map(a => a.pengurus_id === pengurus_id ? { ...a, absensi_id: data.id } : a));
-                }
+            const { error } = await supabase.from("acara_internal").delete().eq("id", acaraId);
+            if (error) throw error;
+            if (activeKabinet) {
+                fetchAcaras(activeKabinet.id);
+                fetchEvaluasi(activeKabinet.id);
             }
-            
-            // Update local state for immediate UI feedback
-            setAbsensiData(prev => prev.map(a => a.pengurus_id === pengurus_id ? { ...a, status: newStatus } : a));
-        } catch (error: any) {
-            console.error("Gagal mengupdate absensi:", error);
-            alert(`Gagal menyimpan absensi: ${error.message}`);
+            alert("Acara berhasil dihapus!");
+        } catch (err: any) {
+            alert("Gagal menghapus acara: " + err.message);
         }
     };
 
@@ -257,11 +213,17 @@ export default function DakwahOSAdmin() {
                                                 >
                                                     Tampilkan QR Code
                                                 </button>
-                                                <button 
-                                                    onClick={() => handleOpenAbsensi(acara)}
-                                                    className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-2.5 rounded-xl text-sm transition-colors border border-blue-200"
+                                                <Link 
+                                                    href={`/admin/admin1/dakwah-os/absensi/${acara.id}`}
+                                                    className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-2.5 rounded-xl text-sm transition-colors border border-blue-200 text-center block"
                                                 >
                                                     Rekap & Edit Absensi
+                                                </Link>
+                                                <button 
+                                                    onClick={() => handleDeleteAcara(acara.id)}
+                                                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                                                >
+                                                    <Trash2 size={16} /> Hapus Acara
                                                 </button>
                                                 {acara.status !== 'completed' && (
                                                     <button 
@@ -407,62 +369,7 @@ export default function DakwahOSAdmin() {
                     )}
                 </AnimatePresence>
 
-                {/* MODAL: REKAP ABSENSI */}
-                <AnimatePresence>
-                    {selectedAcaraForAbsensi && (
-                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
-                                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50 rounded-t-3xl">
-                                    <div>
-                                        <h3 className="font-bold text-lg text-slate-900">Rekap & Edit Absensi</h3>
-                                        <p className="text-sm text-slate-500">{selectedAcaraForAbsensi.title}</p>
-                                    </div>
-                                    <button onClick={() => setSelectedAcaraForAbsensi(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-                                </div>
-                                <div className="p-0 overflow-y-auto flex-1">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 sticky top-0 border-b border-gray-100">
-                                            <tr>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Nama Pengurus</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-center">Status Saat Ini</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-right">Ubah Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {absensiData.map((a, i) => (
-                                                <tr key={i} className="hover:bg-slate-50">
-                                                    <td className="p-4 font-bold text-slate-800 text-sm">{a.full_name}</td>
-                                                    <td className="p-4 text-center">
-                                                        {a.status ? (
-                                                            <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${a.status === 'hadir' ? 'bg-green-100 text-green-700' : a.status === 'izin' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                                                                {a.status}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="px-2 py-1 rounded text-xs font-bold uppercase bg-slate-100 text-slate-500">Belum Absen</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4 text-right">
-                                                        <select 
-                                                            className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-sky-500 bg-white"
-                                                            value={a.status || ""}
-                                                            onChange={(e) => handleUpdateAbsensiStatus(a.pengurus_id, e.target.value)}
-                                                        >
-                                                            <option value="" disabled>Pilih</option>
-                                                            <option value="hadir">Hadir</option>
-                                                            <option value="izin">Izin</option>
-                                                            <option value="sakit">Sakit</option>
-                                                            <option value="alpa">Alpa</option>
-                                                        </select>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
+
 
             </main>
         </div>
