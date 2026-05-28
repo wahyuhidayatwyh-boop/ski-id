@@ -13,7 +13,7 @@ import Image from "next/image";
 
 // Interfaces
 interface Pengurus { id: string; full_name: string; jabatan: string; role_level: string; photo_url: string; phone_number: string; division_id: string; kabinet_id: string; divisions: { id: string, name: string, description: string, icon: string, hero_image_url: string, vision: string, mission: string }; kabinets: { name: string, period: string } }
-interface Acara { id: string; proker_id: string; title: string; description: string; start_time: string; location: string; status: string; jwt_secret_token: string; prokers?: { name: string } }
+interface Acara { id: string; proker_id: string; title: string; description: string; start_time: string; location: string; status: string; jwt_secret_token: string; attachment_url?: string; meeting_link?: string; prokers?: { name: string } }
 interface Proker { id: string; division_id: string; name: string; description: string; image_url: string; status: string; created_at: string; }
 interface Task { id: string; proker_id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string }; prokers?: { name: string } }
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
@@ -60,6 +60,11 @@ export default function DakwahOSPortal() {
     const [editDivisionData, setEditDivisionData] = useState({ description: "", hero_image_url: "", vision: "", mission: "" });
     const [editingProkerId, setEditingProkerId] = useState<string | null>(null);
     const [editProkerData, setEditProkerData] = useState({ name: "", description: "", image_url: "" });
+
+    // Acara Form States
+    const [showAcaraForm, setShowAcaraForm] = useState(false);
+    const [editingAcaraId, setEditingAcaraId] = useState<string | null>(null);
+    const [acaraForm, setAcaraForm] = useState({ title: "", description: "", start_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
 
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<string | null>(null);
@@ -136,8 +141,8 @@ export default function DakwahOSPortal() {
             }
 
             // Fetch Acara
-            const { data: aData, error: aError } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
-            if (aData) setAcaras(aData);
+            const { data: aData, error: aError } = await supabase.from("acara_internal").select("*, prokers(name)").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
+            if (aData) setAcaras(aData as any);
             if (aError) console.error("Acara Error:", aError);
 
             // Fetch Absensi for KPI & Detail
@@ -293,6 +298,31 @@ export default function DakwahOSPortal() {
         setDocUpload({ title: "", type: "proposal", file_url: "" });
         fetchDashboardData(selectedKabinetId);
     };
+
+    const submitAcara = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!acaraForm.title || !acaraForm.proker_id || isReadOnly) return;
+        
+        const payload = { ...acaraForm };
+        if (editingAcaraId) {
+            await supabase.from("acara_internal").update(payload).eq("id", editingAcaraId);
+        } else {
+            const jwt_secret_token = Math.random().toString(36).substring(2, 15);
+            await supabase.from("acara_internal").insert([{ ...payload, kabinet_id: selectedKabinetId, jwt_secret_token }]);
+        }
+        
+        setShowAcaraForm(false);
+        setEditingAcaraId(null);
+        setAcaraForm({ title: "", description: "", start_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
+        fetchDashboardData(selectedKabinetId);
+    };
+
+    const deleteAcara = async (id: string) => {
+        if (isReadOnly || !confirm("Yakin ingin menghapus acara ini beserta data absensinya?")) return;
+        await supabase.from("acara_internal").delete().eq("id", id);
+        fetchDashboardData(selectedKabinetId);
+    };
+
 
     // SCANNER
     useEffect(() => {
@@ -634,10 +664,58 @@ export default function DakwahOSPortal() {
                 {/* VIEW 1.5: AGENDA & RAPAT */}
                 {activeTab === "agenda" && !activeDivisiId && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                        <div className="mb-6">
-                            <h2 className="text-2xl font-black text-slate-900">Agenda & Rapat SKI</h2>
-                            <p className="text-sm font-medium text-slate-500 mt-1">Pantau seluruh kegiatan organisasi dan rapat mendatang.</p>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900">Agenda & Rapat SKI</h2>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Pantau seluruh kegiatan organisasi dan rapat mendatang.</p>
+                            </div>
+                            {!isReadOnly && (
+                                <button onClick={() => { setShowAcaraForm(!showAcaraForm); setEditingAcaraId(null); setAcaraForm({ title: "", description: "", start_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" }); }} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                    {showAcaraForm ? <X size={16} /> : <Plus size={16} />} {showAcaraForm ? "Batal" : "Tambah Acara"}
+                                </button>
+                            )}
                         </div>
+
+                        <AnimatePresence>
+                            {showAcaraForm && !isReadOnly && (
+                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitAcara} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden mb-8">
+                                    <h3 className="font-black text-lg mb-4 flex items-center gap-2">{editingAcaraId ? "Edit Acara" : "Buat Acara Baru"}</h3>
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <input required type="text" placeholder="Judul Acara / Rapat" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={acaraForm.title} onChange={e => setAcaraForm({...acaraForm, title: e.target.value})} />
+                                        <select required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={acaraForm.proker_id} onChange={e => setAcaraForm({...acaraForm, proker_id: e.target.value})}>
+                                            <option value="" disabled>Pilih Turunan Program Kerja</option>
+                                            {prokers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.start_time ? new Date(acaraForm.start_time).toISOString().slice(0,16) : ""} onChange={e => setAcaraForm({...acaraForm, start_time: new Date(e.target.value).toISOString()})} />
+                                        <input required type="text" placeholder="Lokasi (misal: Ruang 101, Online, Gmeet)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.location} onChange={e => setAcaraForm({...acaraForm, location: e.target.value})} />
+                                    </div>
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">File Lampiran (Foto/PDF) Opsional</label>
+                                            <input type="file" accept="image/*,.pdf" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium" onChange={async (e) => { if(e.target.files && e.target.files[0]) { const url = await uploadFileToSupabase(e.target.files[0]); setAcaraForm({...acaraForm, attachment_url: url}); } }} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Link GMeet / Zoom (Opsional)</label>
+                                            <input type="url" placeholder="https://meet.google.com/..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.meeting_link || ""} onChange={e => setAcaraForm({...acaraForm, meeting_link: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <textarea required rows={3} placeholder="Deskripsi Acara..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.description} onChange={e => setAcaraForm({...acaraForm, description: e.target.value})} />
+                                        <div className="flex flex-col gap-2">
+                                            <label className="block text-xs font-bold text-slate-500">Status Acara</label>
+                                            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={acaraForm.status} onChange={e => setAcaraForm({...acaraForm, status: e.target.value})}>
+                                                <option value="upcoming">Akan Datang</option>
+                                                <option value="live">Live (Sedang Berlangsung)</option>
+                                                <option value="completed">Selesai</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button disabled={isUploading} type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors disabled:bg-slate-400">{isUploading ? 'Mengunggah...' : 'Simpan Acara'}</button>
+                                </motion.form>
+                            )}
+                        </AnimatePresence>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {acaras.length === 0 ? (
@@ -652,10 +730,29 @@ export default function DakwahOSPortal() {
                                     const isToday = eventDate.toDateString() === new Date().toDateString();
                                     
                                     return (
-                                        <div key={acara.id} className={`bg-white rounded-[2rem] border overflow-hidden transition-all ${isCompleted ? 'border-slate-200 opacity-75' : isToday ? 'border-sky-400 shadow-lg shadow-sky-100' : 'border-slate-200 shadow-sm hover:shadow-md'}`}>
+                                        <div key={acara.id} className={`bg-white rounded-[2rem] border overflow-hidden transition-all relative group ${isCompleted ? 'border-slate-200 opacity-75' : isToday ? 'border-sky-400 shadow-lg shadow-sky-100' : 'border-slate-200 shadow-sm hover:shadow-md'}`}>
                                             <div className={`h-2 ${isCompleted ? 'bg-slate-300' : isToday ? 'bg-sky-500' : 'bg-blue-400'}`}></div>
+                                            
+                                            {!isReadOnly && (
+                                                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                    <button onClick={() => { setShowAcaraForm(true); setEditingAcaraId(acara.id); setAcaraForm({ title: acara.title, description: acara.description || "", start_time: acara.start_time, location: acara.location || "", proker_id: acara.proker_id, status: acara.status, attachment_url: acara.attachment_url || "", meeting_link: acara.meeting_link || "" }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white p-2 rounded-lg text-sky-500 hover:bg-sky-50 shadow-sm border border-slate-200"><Edit size={14} /></button>
+                                                    <button onClick={() => deleteAcara(acara.id)} className="bg-white p-2 rounded-lg text-red-500 hover:bg-red-50 shadow-sm border border-slate-200"><Trash2 size={14} /></button>
+                                                </div>
+                                            )}
+
+                                            {acara.attachment_url && (
+                                                acara.attachment_url.toLowerCase().endsWith('.pdf') ? (
+                                                    <div className="bg-slate-100 p-4 border-b border-slate-200 flex items-center gap-3">
+                                                        <FileText className="text-red-500" size={24}/>
+                                                        <a href={acara.attachment_url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-sky-600 hover:underline">Lihat Lampiran PDF</a>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-40 w-full bg-cover bg-center border-b border-slate-100" style={{ backgroundImage: `url(${acara.attachment_url})` }} />
+                                                )
+                                            )}
+
                                             <div className="p-6">
-                                                <div className="flex justify-between items-start mb-4">
+                                                <div className="flex justify-between items-start mb-4 pr-16">
                                                     <h3 className="font-black text-lg text-slate-900 leading-tight">{acara.title}</h3>
                                                     {isToday && !isCompleted && (
                                                         <span className="bg-red-100 text-red-600 text-[10px] font-black uppercase px-2 py-1 rounded-full animate-pulse flex-shrink-0">HARI INI</span>
@@ -672,7 +769,14 @@ export default function DakwahOSPortal() {
                                                     </div>
                                                     <div className="flex items-center gap-3 text-sm text-slate-600 font-medium">
                                                         <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0"><span className="text-sky-500 font-bold">@</span></div>
-                                                        <p>{acara.location || 'Menunggu Info Lokasi'}</p>
+                                                        <div className="flex-1">
+                                                            <p>{acara.location || 'Menunggu Info Lokasi'}</p>
+                                                            {acara.meeting_link && (
+                                                                <a href={acara.meeting_link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors">
+                                                                    Join Google Meet / Zoom
+                                                                </a>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 
@@ -688,7 +792,9 @@ export default function DakwahOSPortal() {
                                                     ) : isCompleted ? (
                                                         <span className="text-xs font-bold text-red-400">Belum Absen</span>
                                                     ) : (
-                                                        <span className="text-xs font-bold text-slate-400">Absen Dibuka Saat Acara</span>
+                                                        <button onClick={() => { setActiveTab('dashboard'); setScanning(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm">
+                                                            Absen Sekarang
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
@@ -932,9 +1038,16 @@ export default function DakwahOSPortal() {
                                                     </div>
                                                     <p className="text-xs font-bold text-sky-600 uppercase mb-2">Turunan Proker: {acara.prokers?.name}</p>
                                                     <p className="text-sm font-medium text-slate-600 mb-3">{acara.description}</p>
-                                                    <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
-                                                        <span className="flex items-center gap-1"><Calendar size={14}/> {new Date(acara.start_time).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}</span>
-                                                        <span className="flex items-center gap-1"><Clock size={14}/> {new Date(acara.start_time).toLocaleTimeString("id-ID", {hour: '2-digit', minute:'2-digit'})}</span>
+                                                    <div className="flex flex-col gap-2 mt-3">
+                                                        <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
+                                                            <span className="flex items-center gap-1"><Calendar size={14}/> {new Date(acara.start_time).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}</span>
+                                                            <span className="flex items-center gap-1"><Clock size={14}/> {new Date(acara.start_time).toLocaleTimeString("id-ID", {hour: '2-digit', minute:'2-digit'})}</span>
+                                                        </div>
+                                                        {acara.meeting_link && (
+                                                            <a href={acara.meeting_link} target="_blank" rel="noopener noreferrer" className="inline-block bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors w-max">
+                                                                Join Google Meet / Zoom
+                                                            </a>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="flex-shrink-0 flex sm:flex-col justify-end sm:justify-start items-center sm:items-end gap-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-4 sm:pt-0 sm:pl-6">
@@ -943,10 +1056,14 @@ export default function DakwahOSPortal() {
                                                         <span className={`px-4 py-1.5 rounded-lg text-sm font-black uppercase border ${statusHadir === 'hadir' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
                                                             {statusHadir}
                                                         </span>
-                                                    ) : (
+                                                    ) : acara.status === 'completed' ? (
                                                         <span className="px-4 py-1.5 rounded-lg text-sm font-black uppercase bg-slate-200 text-slate-500 border border-slate-300">
                                                             BELUM ABSEN
                                                         </span>
+                                                    ) : (
+                                                        <button onClick={() => { setActiveTab('dashboard'); setScanning(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm w-full sm:w-auto text-center">
+                                                            Absen Sekarang
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
