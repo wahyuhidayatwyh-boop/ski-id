@@ -123,8 +123,8 @@ export default function DakwahOSPortal() {
     const fetchDashboardData = async (kabinet_id: string) => {
         setLoading(true);
         try {
-            // Fetch Divisions & Structure
-            const { data: divData } = await supabase.from("divisions").select("*");
+            // Fetch Divisions & Structure for current Kabinet
+            const { data: divData } = await supabase.from("divisions").select("*").eq("kabinet_id", kabinet_id);
             if (divData) {
                 const enrichedDivs = await Promise.all(divData.map(async (div) => {
                     const { data: pData } = await supabase.from("pengurus").select("full_name, jabatan, role_level, photo_url").eq("division_id", div.id).eq("kabinet_id", kabinet_id);
