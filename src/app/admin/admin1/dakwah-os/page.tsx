@@ -26,7 +26,7 @@ export default function DakwahOSAdmin() {
     // Acara State
     const [acaras, setAcaras] = useState<Acara[]>([]);
     const [showAcaraModal, setShowAcaraModal] = useState(false);
-    const [newAcara, setNewAcara] = useState({ title: "", start_time: "", end_time: "", location: "" });
+    const [newAcara, setNewAcara] = useState({ title: "", description: "", start_time: "", location: "", attachment_url: "", meeting_link: "" });
     const [selectedQR, setSelectedQR] = useState<string | null>(null);
     
 
@@ -110,16 +110,18 @@ export default function DakwahOSAdmin() {
         try {
             const { error } = await supabase.from("acara_internal").insert([{
                 title: newAcara.title,
+                description: newAcara.description,
                 start_time: new Date(newAcara.start_time).toISOString(),
-                end_time: new Date(newAcara.end_time).toISOString(),
                 location: newAcara.location,
+                attachment_url: newAcara.attachment_url,
+                meeting_link: newAcara.meeting_link,
                 kabinet_id: activeKabinet.id,
                 jwt_secret_token: randomToken
             }]);
             
             if (error) throw error;
             setShowAcaraModal(false);
-            setNewAcara({ title: "", start_time: "", end_time: "", location: "" });
+            setNewAcara({ title: "", description: "", start_time: "", location: "", attachment_url: "", meeting_link: "" });
             fetchAcaras(activeKabinet.id);
             alert("Agenda internal berhasil dibuat!");
         } catch (err: any) {
@@ -327,17 +329,27 @@ export default function DakwahOSAdmin() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Mulai</label>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Waktu Mulai</label>
                                             <input required type="datetime-local" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none text-sm" value={newAcara.start_time} onChange={e => setNewAcara({...newAcara, start_time: e.target.value})} />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Selesai</label>
-                                            <input required type="datetime-local" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none text-sm" value={newAcara.end_time} onChange={e => setNewAcara({...newAcara, end_time: e.target.value})} />
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Lokasi</label>
+                                            <input type="text" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" value={newAcara.location} onChange={e => setNewAcara({...newAcara, location: e.target.value})} placeholder="Ruang Sekretariat SKI" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Link Foto/PDF (Opsional)</label>
+                                            <input type="text" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" value={newAcara.attachment_url} onChange={e => setNewAcara({...newAcara, attachment_url: e.target.value})} placeholder="https://..." />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Link GMeet (Opsional)</label>
+                                            <input type="url" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" value={newAcara.meeting_link} onChange={e => setNewAcara({...newAcara, meeting_link: e.target.value})} placeholder="https://meet.google.com/..." />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Lokasi</label>
-                                        <input type="text" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" value={newAcara.location} onChange={e => setNewAcara({...newAcara, location: e.target.value})} placeholder="Ruang Sekretariat SKI" />
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Deskripsi Acara</label>
+                                        <textarea rows={3} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" value={newAcara.description} onChange={e => setNewAcara({...newAcara, description: e.target.value})} placeholder="Deskripsi Singkat" />
                                     </div>
                                     <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl mt-4 transition-colors">Generate Acara & QR Code</button>
                                 </form>

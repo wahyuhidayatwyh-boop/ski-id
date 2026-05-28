@@ -301,14 +301,20 @@ export default function DakwahOSPortal() {
 
     const submitAcara = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!acaraForm.title || !acaraForm.proker_id || isReadOnly) return;
+        if (!acaraForm.title || isReadOnly) return;
         
         const payload = { ...acaraForm };
+        if (payload.proker_id === "") {
+            payload.proker_id = null as any;
+        }
+
         if (editingAcaraId) {
-            await supabase.from("acara_internal").update(payload).eq("id", editingAcaraId);
+            const { error } = await supabase.from("acara_internal").update(payload).eq("id", editingAcaraId);
+            if (error) { alert("Gagal update acara: " + error.message); return; }
         } else {
             const jwt_secret_token = Math.random().toString(36).substring(2, 15);
-            await supabase.from("acara_internal").insert([{ ...payload, kabinet_id: selectedKabinetId, jwt_secret_token }]);
+            const { error } = await supabase.from("acara_internal").insert([{ ...payload, kabinet_id: selectedKabinetId, jwt_secret_token }]);
+            if (error) { alert("Gagal membuat acara: " + error.message); return; }
         }
         
         setShowAcaraForm(false);
@@ -682,8 +688,8 @@ export default function DakwahOSPortal() {
                                     <h3 className="font-black text-lg mb-4 flex items-center gap-2">{editingAcaraId ? "Edit Acara" : "Buat Acara Baru"}</h3>
                                     <div className="grid sm:grid-cols-2 gap-4 mb-4">
                                         <input required type="text" placeholder="Judul Acara / Rapat" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={acaraForm.title} onChange={e => setAcaraForm({...acaraForm, title: e.target.value})} />
-                                        <select required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={acaraForm.proker_id} onChange={e => setAcaraForm({...acaraForm, proker_id: e.target.value})}>
-                                            <option value="" disabled>Pilih Turunan Program Kerja</option>
+                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={acaraForm.proker_id} onChange={e => setAcaraForm({...acaraForm, proker_id: e.target.value})}>
+                                            <option value="" disabled>Pilih Turunan Program Kerja (Opsional)</option>
                                             {prokers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
                                     </div>
