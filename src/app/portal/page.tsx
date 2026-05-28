@@ -31,7 +31,7 @@ export default function DakwahOSPortal() {
     const isReadOnly = kabinets.find(k => k.id === selectedKabinetId)?.is_active === false;
 
     // View States
-    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault">("dashboard");
+    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault" | "agenda">("dashboard");
     const [activeDivisiId, setActiveDivisiId] = useState<string | null>(null);
     const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker" | "acara">("profil");
     
@@ -413,9 +413,10 @@ export default function DakwahOSPortal() {
                 
                 {/* Main Navigation Tabs */}
                 {!activeDivisiId && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-8 w-full max-w-md mx-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-8 w-full max-w-2xl mx-auto">
     {[
         { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
+        { id: "agenda", icon: <Calendar size={18} />, label: "Agenda & Rapat" },
         { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
         { id: "vault", icon: <Archive size={18} />, label: "Vault Approval" }
     ].map((tab) => (
@@ -606,6 +607,75 @@ export default function DakwahOSPortal() {
                                 </div>
                             )}
 
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* VIEW 1.5: AGENDA & RAPAT */}
+                {activeTab === "agenda" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                        <div className="mb-6">
+                            <h2 className="text-2xl font-black text-slate-900">Agenda & Rapat SKI</h2>
+                            <p className="text-sm font-medium text-slate-500 mt-1">Pantau seluruh kegiatan organisasi dan rapat mendatang.</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {acaras.length === 0 ? (
+                                <div className="col-span-full text-center py-12 bg-white rounded-3xl border border-dashed border-slate-300">
+                                    <Calendar className="mx-auto text-slate-300 mb-3" size={48} />
+                                    <p className="text-slate-500 font-bold">Belum ada agenda terdaftar saat ini.</p>
+                                </div>
+                            ) : (
+                                acaras.map(acara => {
+                                    const isCompleted = acara.status === 'completed';
+                                    const eventDate = new Date(acara.start_time);
+                                    const isToday = eventDate.toDateString() === new Date().toDateString();
+                                    
+                                    return (
+                                        <div key={acara.id} className={`bg-white rounded-[2rem] border overflow-hidden transition-all ${isCompleted ? 'border-slate-200 opacity-75' : isToday ? 'border-sky-400 shadow-lg shadow-sky-100' : 'border-slate-200 shadow-sm hover:shadow-md'}`}>
+                                            <div className={`h-2 ${isCompleted ? 'bg-slate-300' : isToday ? 'bg-sky-500' : 'bg-blue-400'}`}></div>
+                                            <div className="p-6">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <h3 className="font-black text-lg text-slate-900 leading-tight">{acara.title}</h3>
+                                                    {isToday && !isCompleted && (
+                                                        <span className="bg-red-100 text-red-600 text-[10px] font-black uppercase px-2 py-1 rounded-full animate-pulse flex-shrink-0">HARI INI</span>
+                                                    )}
+                                                </div>
+                                                
+                                                <div className="space-y-3 mb-6">
+                                                    <div className="flex items-center gap-3 text-sm text-slate-600 font-medium">
+                                                        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0"><Clock size={14} className="text-sky-500"/></div>
+                                                        <div>
+                                                            <p>{eventDate.toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                                            <p className="text-xs text-slate-400">{eventDate.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-sm text-slate-600 font-medium">
+                                                        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0"><span className="text-sky-500 font-bold">@</span></div>
+                                                        <p>{acara.location || 'Menunggu Info Lokasi'}</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                                                    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${isCompleted ? 'bg-slate-100 text-slate-500' : 'bg-sky-50 text-sky-600'}`}>
+                                                        {isCompleted ? 'Selesai' : 'Akan Datang'}
+                                                    </span>
+                                                    
+                                                    {attendedEvents[acara.id] ? (
+                                                        <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">
+                                                            <CheckCircle size={12} /> {attendedEvents[acara.id].toUpperCase()}
+                                                        </span>
+                                                    ) : isCompleted ? (
+                                                        <span className="text-xs font-bold text-red-400">Belum Absen</span>
+                                                    ) : (
+                                                        <span className="text-xs font-bold text-slate-400">Absen Dibuka Saat Acara</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
                         </div>
                     </motion.div>
                 )}

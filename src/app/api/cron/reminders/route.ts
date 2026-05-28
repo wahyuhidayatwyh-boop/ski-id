@@ -12,14 +12,14 @@ export async function GET(req: Request) {
         }
 
         // 1. Ambil acara yang mendekati hari H
-        // H-30, H-21, H-14, H-7
+        // H-7, H-3, H-1, H-0 (Hari H)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const { data: acaras, error } = await supabase
             .from("acara_internal")
             .select("*, prokers(name, division_id, divisions(name))")
-            .eq("status", "upcoming");
+            .neq("status", "completed");
 
         if (error || !acaras) {
             throw error || new Error("Gagal mengambil data acara");
@@ -36,37 +36,41 @@ export async function GET(req: Request) {
             const diffTime = Math.abs(eventDate.getTime() - today.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Jika hari ini bertepatan dengan H-30, H-21, H-14, atau H-7
-            if ([30, 21, 14, 7].includes(diffDays)) {
+            // Jika hari ini bertepatan dengan H-7, H-3, H-1, atau H-0
+            if ([7, 3, 1, 0].includes(diffDays)) {
                 
                 // Ambil daftar email pengurus di divisi yang bersangkutan
                 // Asumsi pengurus punya user_id yang merujuk ke tabel users
                 // Kita gunakan RCP atau join manual jika perlu. 
                 // Untuk contoh ini kita get pengurus by division_id
-                const { data: staffList } = await supabase
-                    .from("pengurus")
-                    .select("full_name, role_level, user_id")
-                    .eq("division_id", acara.prokers.division_id)
-                    .eq("kabinet_id", acara.kabinet_id);
-
-                if (!staffList || staffList.length === 0) continue;
+                let targetEmails = ["anggota@ski-telkom.ac.id", "pengurus@ski-telkom.ac.id"]; // Mock target
+                
+                if (acara.prokers?.division_id) {
+                    const { data: staffList } = await supabase
+                        .from("pengurus")
+                        .select("full_name, role_level, user_id")
+                        .eq("division_id", acara.prokers.division_id)
+                        .eq("kabinet_id", acara.kabinet_id);
+    
+                    if (!staffList || staffList.length === 0) continue;
+                }
 
                 // Tentukan isi pesan berdasarkan H- berapa
                 let reminderType = "";
                 let actionRequired = "";
                 
-                if (diffDays === 30) {
-                    reminderType = "Persiapan Awal & Birokrasi";
-                    actionRequired = "Mengingatkan untuk segera memfinalisasi konsep acara, RAB, dan mengurus surat peminjaman ruangan/fasilitas ke kampus.";
-                } else if (diffDays === 21) {
-                    reminderType = "Cek Progres Checklist";
-                    actionRequired = "Mengingatkan seluruh staff divisi untuk mengecek tugas checklist masing-masing di portal Dakwah-OS.";
-                } else if (diffDays === 14) {
-                    reminderType = "Finalisasi Persiapan";
-                    actionRequired = "Mengingatkan Koordinator untuk melakukan rapat final (GR) dan memastikan semua logistik serta publikasi siap.";
-                } else if (diffDays === 7) {
-                    reminderType = "Undangan Massal H-7";
-                    actionRequired = "Acara tinggal 1 Minggu! Segera sebarkan broadcast ke seluruh anggota kabinet.";
+                if (diffDays === 7) {
+                    reminderType = "Persiapan Final & Publikasi H-7";
+                    actionRequired = "Acara tinggal 1 Minggu! Mengingatkan untuk memfinalisasi persiapan, gladi bersih (jika ada), dan mulai menggencarkan publikasi acara ke anggota.";
+                } else if (diffDays === 3) {
+                    reminderType = "Cek Kesiapan Logistik H-3";
+                    actionRequired = "Mengingatkan seluruh divisi untuk memastikan seluruh logistik, materi, dan perlengkapan sudah siap 100%.";
+                } else if (diffDays === 1) {
+                    reminderType = "Reminder H-1 Acara";
+                    actionRequired = "Besok acara dimulai! Pastikan semua persiapan sudah selesai dan ingatkan kembali peserta untuk hadir.";
+                } else if (diffDays === 0) {
+                    reminderType = "HARI H PELAKSANAAN";
+                    actionRequired = "Hari ini adalah pelaksanaan acara. Semangat bertugas dan jangan lupa mengisi presensi kehadiran!";
                 }
 
                 const emailBody = `
@@ -76,8 +80,8 @@ export async function GET(req: Request) {
                             <p style="color: #e0f2fe; font-size: 14px; margin: 5px 0 0 0;">Dakwah-OS Automated System</p>
                         </div>
                         <div style="padding: 30px; background-color: #ffffff;">
-                            <h3 style="color: #0f172a; margin-top: 0;">${acara.title} - ${acara.prokers.name}</h3>
-                            <p style="color: #334155; font-size: 15px;">Divisi: <strong>${acara.prokers.divisions.name}</strong></p>
+                            <h3 style="color: #0f172a; margin-top: 0;">${acara.title} ${acara.prokers ? `- ${acara.prokers.name}` : ''}</h3>
+                            <p style="color: #334155; font-size: 15px;">Penyelenggara: <strong>${acara.prokers?.divisions?.name || 'Seluruh Pengurus'}</strong></p>
                             <p style="color: #334155; font-size: 15px;">Waktu Pelaksanaan: <strong>${new Date(acara.start_time).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong></p>
                             <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
                             <div style="background-color: #f8fafc; padding: 15px; border-left: 4px solid #0ea5e9; border-radius: 4px;">
@@ -98,10 +102,8 @@ export async function GET(req: Request) {
                     },
                 });
 
-                // Di dunia nyata, ini akan melooping array email dari staffList
-                // Karena kita tidak menyimpan email eksplisit di 'pengurus', kita mockup untuk MVP
                 // Namun secara logika, email di-query dari tabel auth.users
-                const targetEmails = ["koord@ski-telkom.ac.id", "staff1@ski-telkom.ac.id"]; // Mock target
+                // Target emails variable is already set above
 
                 if (process.env.SMTP_PASSWORD) {
                     await transporter.sendMail({
