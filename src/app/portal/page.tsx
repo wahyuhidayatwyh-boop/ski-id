@@ -165,20 +165,32 @@ export default function DakwahOSPortal() {
                     // If Coordinator, calculate staff performance for their division
                     if (isCoordinator) {
                         const divStaff = await supabase.from("pengurus").select("id, full_name, role_level").eq("division_id", pengurus!.division_id);
+                        
+                        // Fetch performa
+                        const performaQuery = await supabase.from("vw_performa_pengurus").select("*").eq("kabinet_id", kabinet_id);
+                        const performaMap = new Map(performaQuery.data?.map(p => [p.pengurus_id, p]) || []);
+
                         if (divStaff.data) {
                             // Exclude themselves or other coordinators from the "staff performance" view, only show subordinates
                             const subordinates = divStaff.data.filter(s => !["ketuum", "div_ketua", "lso_ketua"].includes(s.role_level));
                             const perf = subordinates.map(staff => {
                                 const sTasks = (tData ?? []).filter(t => t.assigned_to === staff.id);
                                 const done = sTasks.filter(t => t.is_completed).length;
+                                
+                                const pData = performaMap.get(staff.id);
+
                                 return {
                                     name: staff.full_name,
                                     total: sTasks.length,
                                     done: done,
-                                    kpi: sTasks.length > 0 ? Math.round((done / sTasks.length) * 100) : 100
+                                    kpi: sTasks.length > 0 ? Math.round((done / sTasks.length) * 100) : 100,
+                                    hadir: pData?.total_hadir || 0,
+                                    totalAcara: pData?.total_acara || 0,
+                                    kpiHadir: pData?.persentase_kehadiran || 0,
+                                    statusHadir: pData?.status_evaluasi || 'Belum Ada Acara'
                                 };
                             });
-                            setStaffPerformance(perf);
+                            setStaffPerformance(perf as any);
                         }
                     }
                 }
@@ -585,8 +597,10 @@ export default function DakwahOSPortal() {
                                             <thead>
                                                 <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
                                                     <th className="pb-3 font-bold">Nama Staff</th>
-                                                    <th className="pb-3 font-bold text-center">Tugas Selesai</th>
+                                                    <th className="pb-3 font-bold text-center">Tugas Proker</th>
                                                     <th className="pb-3 font-bold text-center">KPI Proker</th>
+                                                    <th className="pb-3 font-bold text-center">Kehadiran</th>
+                                                    <th className="pb-3 font-bold text-center">KPI Disiplin</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-800">
@@ -597,6 +611,12 @@ export default function DakwahOSPortal() {
                                                         <td className="py-3 text-center">
                                                             <span className={`px-2 py-1 rounded text-xs font-black ${staff.kpi >= 75 ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
                                                                 {staff.kpi}%
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 text-center text-slate-300">{(staff as any).hadir} / {(staff as any).totalAcara}</td>
+                                                        <td className="py-3 text-center">
+                                                            <span className={`px-2 py-1 rounded text-xs font-black ${(staff as any).kpiHadir >= 75 ? 'bg-green-900/50 text-green-400' : (staff as any).kpiHadir >= 50 ? 'bg-amber-900/50 text-amber-400' : 'bg-red-900/50 text-red-400'}`}>
+                                                                {(staff as any).kpiHadir}%
                                                             </span>
                                                         </td>
                                                     </tr>
