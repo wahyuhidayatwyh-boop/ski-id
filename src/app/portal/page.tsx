@@ -1100,7 +1100,7 @@ export default function DakwahOSPortal() {
                                                         <h4 className="font-black text-slate-900 text-lg">{acara.title}</h4>
                                                         {acara.status === 'live' && <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded animate-pulse uppercase">Live</span>}
                                                     </div>
-                                                    <p className="text-xs font-bold text-sky-600 uppercase mb-2">Turunan Proker: {acara.prokers?.name}</p>
+                                                     <p className="text-xs font-bold text-sky-600 uppercase mb-2">Turunan Proker: {prokers.find(p => p.id === acara.proker_id)?.name}</p>
                                                     <p className="text-sm font-medium text-slate-600 mb-3">{acara.description}</p>
                                                     <div className="flex flex-col gap-2 mt-3">
                                                         <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
