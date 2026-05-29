@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
     LogOut, User, Calendar, CheckCircle, Clock, Plus, Briefcase, 
-    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, ChevronRight, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon
+    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, ChevronRight, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon, Menu
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5Qrcode } from "html5-qrcode";
@@ -44,6 +44,7 @@ export default function DakwahOSPortal() {
     const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault" | "agenda" | "arsip">("dashboard");
     const [activeDivisiId, setActiveDivisiId] = useState<string | null>(null);
     const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker" | "acara">("profil");
+    const [showMobileNav, setShowMobileNav] = useState(false);
     
     // Data States
     const [allDivisions, setAllDivisions] = useState<DivisionData[]>([]);
@@ -596,17 +597,21 @@ export default function DakwahOSPortal() {
             {/* Navbar / Header */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row justify-between items-center gap-3 sm:h-16 sm:py-0">
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-start">
-                        <img src={LOGO_URL} alt="Logo SKI" className="w-10 h-10 object-contain drop-shadow-sm" />
-                        <div className="flex-1">
-                            <h1 className="font-black text-slate-900 leading-tight tracking-tight text-lg">Dakwah-OS</h1>
-                            <p className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Enterprise Management</p>
+                    <div className="flex items-center justify-between w-full sm:w-auto">
+                        <div className="flex items-center gap-3">
+                            <img src={LOGO_URL} alt="Logo SKI" className="w-10 h-10 object-contain drop-shadow-sm" />
+                            <div>
+                                <h1 className="font-black text-slate-900 leading-tight tracking-tight text-lg">Portal Anggota SKI</h1>
+                                <p className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Enterprise Management</p>
+                            </div>
                         </div>
-                        <button onClick={handleLogout} className="sm:hidden text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors">
-                            <LogOut size={20} />
-                        </button>
+                        <div className="flex items-center gap-2 sm:hidden">
+                            <button onClick={() => setShowMobileNav(!showMobileNav)} className="text-slate-600 hover:text-sky-500 hover:bg-sky-50 p-2 rounded-xl transition-colors">
+                                {showMobileNav ? <X size={20} /> : <Menu size={20} />}
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex items-center w-full sm:w-auto gap-4">
+                    <div className="flex flex-col sm:flex-row items-center w-full sm:w-auto gap-4 mt-3 sm:mt-0">
                         <select 
                             value={selectedKabinetId} 
                             onChange={(e) => { setSelectedKabinetId(e.target.value); setActiveDivisiId(null); setActiveTab("dashboard"); }}
@@ -614,7 +619,7 @@ export default function DakwahOSPortal() {
                         >
                             {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} {k.period} {k.is_active ? '(Aktif)' : '(Arsip)'}</option>)}
                         </select>
-                        <button onClick={handleLogout} className="hidden sm:block text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors">
+                        <button onClick={handleLogout} className="hidden sm:block text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors" title="Keluar">
                             <LogOut size={20} />
                         </button>
                     </div>
@@ -633,21 +638,26 @@ export default function DakwahOSPortal() {
                 
                 {/* Main Navigation Tabs */}
                 {!activeDivisiId && (
-                        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-8 w-full max-w-4xl mx-auto">
-    {[
-        { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
-        { id: "agenda", icon: <Calendar size={18} />, label: "Timeline Proker" },
-        { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
-        { id: "vault", icon: <FileText size={18} />, label: "Vault Approval" },
-        { id: "arsip", icon: <Book size={18} />, label: "Knowledge Base" }
-    ].map((tab) => (
-        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center justify-center gap-2 py-3 px-4 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"} w-full`}
-        >
-            {tab.icon} <span>{tab.label}</span>
-        </button>
-    ))}
-</div>
+                    <div className={`${showMobileNav ? 'block' : 'hidden'} sm:block mb-8`}>
+                        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 w-full max-w-4xl mx-auto">
+                            {[
+                                { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
+                                { id: "agenda", icon: <Calendar size={18} />, label: "Timeline Proker" },
+                                { id: "divisi", icon: <Users size={18} />, label: "Ruang Divisi" },
+                                { id: "vault", icon: <FileText size={18} />, label: "Persetujuan Proposal" },
+                                { id: "arsip", icon: <Book size={18} />, label: "Penyimpanan Berkas" }
+                            ].map((tab) => (
+                                <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setShowMobileNav(false); }}
+                                    className={`flex items-center justify-center sm:justify-center justify-start gap-3 py-3 px-4 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "bg-white sm:bg-transparent border border-slate-200 sm:border-none text-slate-500 hover:bg-slate-50"} w-full`}
+                                >
+                                    {tab.icon} <span>{tab.label}</span>
+                                </button>
+                            ))}
+                            <button onClick={handleLogout} className="sm:hidden flex items-center justify-start gap-3 py-3 px-4 text-sm font-bold rounded-xl transition-all bg-red-50 border border-red-200 text-red-500 w-full mt-2">
+                                <LogOut size={18} /> <span>Keluar Akun</span>
+                            </button>
+                        </div>
+                    </div>
                 )}
 
                 {/* VIEW 1: DASHBOARD UTAMA (Kondisi Saya) */}
@@ -1446,12 +1456,12 @@ export default function DakwahOSPortal() {
                                 {documents.length === 0 && <p className="text-center text-slate-400 font-bold py-8">Belum ada dokumen yang diunggah pada kabinet ini.</p>}
                                 {documents.map(doc => (
                                     <div key={doc.id} className="flex flex-col xl:flex-row xl:items-center justify-between p-5 bg-slate-50 border border-slate-100 rounded-2xl gap-4 hover:border-sky-300 transition-colors group">
-                                        <div className="flex items-start gap-4">
+                                        <div className="flex items-start gap-4 min-w-0 flex-1">
                                             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-slate-200 text-sky-500 flex-shrink-0 shadow-sm"><FileText size={24}/></div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h4 className="font-black text-slate-900 text-lg">{doc.title}</h4>
-                                                    <span className="text-[10px] font-black uppercase bg-slate-200 text-slate-600 px-2 py-0.5 rounded">{doc.type}</span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-1 w-full overflow-hidden">
+                                                    <h4 className="font-black text-slate-900 text-lg truncate flex-shrink min-w-0">{doc.title}</h4>
+                                                    <span className="text-[10px] font-black uppercase bg-slate-200 text-slate-600 px-2 py-0.5 rounded flex-shrink-0">{doc.type}</span>
                                                 </div>
                                                 <p className="text-xs font-bold text-slate-500">Diunggah oleh: <span className="text-slate-700">{doc.pengurus?.full_name}</span> • {new Date(doc.created_at).toLocaleDateString("id-ID")}</p>
                                                 
@@ -1490,7 +1500,7 @@ export default function DakwahOSPortal() {
                                                 )}
                                                 
                                                 {/* Action Buttons for Approvers */}
-                                                <div className="flex gap-2 mt-4">
+                                                <div className="flex flex-wrap gap-2 mt-4">
                                                     {isBendahara && doc.status === 'cek_bendahara' && !isReadOnly && (
                                                         <>
                                                             <button onClick={() => handleDocumentAction(doc.id, 'acc_bendahara')} className="bg-green-500 hover:bg-green-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1"><Check size={14}/> ACC Bendahara</button>
@@ -1506,7 +1516,7 @@ export default function DakwahOSPortal() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-black text-slate-700 hover:text-sky-600 hover:border-sky-300 transition-colors shadow-sm">
+                                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 w-full xl:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-black text-slate-700 hover:text-sky-600 hover:border-sky-300 transition-colors shadow-sm">
                                             <Download size={18} /> Unduh File Dokumen
                                         </a>
                                     </div>
