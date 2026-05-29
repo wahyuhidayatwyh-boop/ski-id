@@ -20,7 +20,8 @@ interface Task { id: string; proker_id: string; title: string; description: stri
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
 interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; catatan_revisi?: string; pengurus?: { full_name: string } }
 interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
-interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; division_id?: string; file_size?: number; file_type?: string; kabinet_id?: string; pengurus?: { full_name: string }; divisions?: { name: string } }
+interface KnowledgeFolder { id: string; name: string; parent_id: string | null; kabinet_id: string; division_id: string | null; created_by: string; created_at: string; }
+interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; division_id?: string; folder_id?: string; file_size?: number; file_type?: string; kabinet_id?: string; pengurus?: { full_name: string }; divisions?: { name: string } }
 
 export default function DakwahOSPortal() {
     const router = useRouter();
@@ -46,6 +47,7 @@ export default function DakwahOSPortal() {
     const [allTasks, setAllTasks] = useState<Task[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBase[]>([]);
+    const [knowledgeFolders, setKnowledgeFolders] = useState<KnowledgeFolder[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<{name: string, total: number, done: number, kpi: number}[]>([]);
     
     // Form States
@@ -59,9 +61,12 @@ export default function DakwahOSPortal() {
     const [docUpload, setDocUpload] = useState({ title: "", type: "proposal", file_url: "" });
     const [docFile, setDocFile] = useState<File | null>(null);
     const [showKnowledgeForm, setShowKnowledgeForm] = useState(false);
-    const [knowledgeForm, setKnowledgeForm] = useState({ title: '', folder: '' });
+    const [knowledgeForm, setKnowledgeForm] = useState({ title: '' });
     const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
-    const [activeKBFolder, setActiveKBFolder] = useState<string | null>(null);
+    const [kbDivisionId, setKbDivisionId] = useState<string | null>(null);
+    const [kbFolderId, setKbFolderId] = useState<string | null>(null);
+    const [showCreateFolderForm, setShowCreateFolderForm] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
 
     // Edit Division & Proker States
     const [isEditingDivision, setIsEditingDivision] = useState(false);
@@ -234,6 +239,10 @@ export default function DakwahOSPortal() {
             const { data: kbData } = await supabase.from("knowledge_base").select("*, pengurus:uploaded_by(full_name), divisions:division_id(name)").order("created_at", { ascending: false });
             if (kbData) setKnowledgeFiles(kbData as any);
 
+            // Knowledge Folders
+            const { data: kbFolders } = await supabase.from("knowledge_folders").select("*").eq("kabinet_id", kabinet_id).order("name", { ascending: true });
+            if (kbFolders) setKnowledgeFolders(kbFolders as any);
+
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
         } finally {
@@ -347,20 +356,37 @@ export default function DakwahOSPortal() {
         if (!knowledgeForm.title || !knowledgeFile || isReadOnly) return;
         try {
             const url = await uploadFileToSupabase(knowledgeFile);
-            const folderTarget = knowledgeForm.folder || pengurus!.division_id;
             await supabase.from("knowledge_base").insert([{ 
                 title: knowledgeForm.title, 
-                folder: folderTarget, 
+                folder: kbFolderId || kbDivisionId || 'umum', 
+                folder_id: kbFolderId,
                 file_url: url, 
                 uploaded_by: pengurus!.id,
-                division_id: pengurus!.division_id,
+                division_id: kbDivisionId === 'umum' ? null : kbDivisionId,
                 kabinet_id: selectedKabinetId,
                 file_size: knowledgeFile.size,
                 file_type: knowledgeFile.type
             }]);
             setShowKnowledgeForm(false);
-            setKnowledgeForm({ title: '', folder: '' });
+            setKnowledgeForm({ title: '' });
             setKnowledgeFile(null);
+            fetchDashboardData(selectedKabinetId);
+        } catch (err) { console.error(err); }
+    };
+
+    const createKnowledgeFolder = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newFolderName || isReadOnly) return;
+        try {
+            await supabase.from("knowledge_folders").insert([{
+                name: newFolderName,
+                parent_id: kbFolderId,
+                kabinet_id: selectedKabinetId,
+                division_id: kbDivisionId === 'umum' ? null : kbDivisionId,
+                created_by: pengurus!.id
+            }]);
+            setShowCreateFolderForm(false);
+            setNewFolderName('');
             fetchDashboardData(selectedKabinetId);
         } catch (err) { console.error(err); }
     };
@@ -1396,31 +1422,68 @@ export default function DakwahOSPortal() {
                         {/* Header */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                             <div className="flex items-center gap-3">
-                                {activeKBFolder && (
-                                    <button onClick={() => setActiveKBFolder(null)} className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center transition-colors">
+                                {(kbDivisionId || kbFolderId) && (
+                                    <button onClick={() => {
+                                        if (kbFolderId) {
+                                            const currentFolder = knowledgeFolders.find(f => f.id === kbFolderId);
+                                            if (currentFolder?.parent_id) {
+                                                setKbFolderId(currentFolder.parent_id);
+                                            } else {
+                                                setKbFolderId(null);
+                                            }
+                                        } else {
+                                            setKbDivisionId(null);
+                                        }
+                                        setShowKnowledgeForm(false);
+                                        setShowCreateFolderForm(false);
+                                    }} className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center transition-colors">
                                         <ChevronLeft size={20} className="text-slate-600"/>
                                     </button>
                                 )}
                                 <div>
                                     <h3 className="font-black text-xl text-slate-900 flex items-center gap-2">
                                         <Database size={20} className="text-sky-500" />
-                                        {activeKBFolder ? (allDivisions.find(d => d.id === activeKBFolder)?.name || 'Umum') : 'Penyimpanan File'}
+                                        {kbFolderId 
+                                            ? knowledgeFolders.find(f => f.id === kbFolderId)?.name 
+                                            : kbDivisionId 
+                                                ? (kbDivisionId === 'umum' ? 'Folder Umum' : allDivisions.find(d => d.id === kbDivisionId)?.name)
+                                                : 'Penyimpanan File'}
                                     </h3>
                                     <p className="text-sm font-medium text-slate-500">
-                                        {activeKBFolder ? 'File-file yang diunggah dalam folder divisi ini' : 'Pilih folder divisi untuk melihat atau mengunggah file.'}
+                                        {(kbDivisionId || kbFolderId) ? 'File dan folder di dalam direktori ini' : 'Pilih folder divisi untuk melihat atau mengunggah file.'}
                                     </p>
                                 </div>
                             </div>
-                            {activeKBFolder && !isReadOnly && (
-                                <button onClick={() => setShowKnowledgeForm(!showKnowledgeForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
-                                    <Upload size={16} /> Unggah File
-                                </button>
+                            {(kbDivisionId || kbFolderId) && !isReadOnly && (
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setShowCreateFolderForm(!showCreateFolderForm); setShowKnowledgeForm(false); }} className="bg-white border-2 border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-black text-sm shadow-sm hover:border-sky-300 hover:text-sky-600 flex items-center gap-2 transition-colors">
+                                        <Plus size={16} /> Folder Baru
+                                    </button>
+                                    <button onClick={() => { setShowKnowledgeForm(!showKnowledgeForm); setShowCreateFolderForm(false); }} className="bg-sky-500 text-white px-4 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                        <Upload size={16} /> Unggah File
+                                    </button>
+                                </div>
                             )}
                         </div>
 
+                        {/* Create Folder Form */}
+                        <AnimatePresence>
+                            {showCreateFolderForm && (kbDivisionId || kbFolderId) && !isReadOnly && (
+                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={createKnowledgeFolder} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
+                                    <h4 className="font-black text-slate-900 mb-4">Buat Folder Baru</h4>
+                                    <div className="flex gap-4">
+                                        <input required type="text" placeholder="Nama Folder (Misal: Dokumen Rapat)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} />
+                                        <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">
+                                            Buat Folder
+                                        </button>
+                                    </div>
+                                </motion.form>
+                            )}
+                        </AnimatePresence>
+
                         {/* Upload Form */}
                         <AnimatePresence>
-                            {showKnowledgeForm && activeKBFolder && !isReadOnly && (
+                            {showKnowledgeForm && (kbDivisionId || kbFolderId) && !isReadOnly && (
                                 <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitKnowledge} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
                                     <h4 className="font-black text-slate-900 mb-4">Unggah File Baru</h4>
                                     <input required type="text" placeholder="Nama File (Misal: Guideline Desain Poster)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500 mb-4" value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value})} />
@@ -1452,45 +1515,46 @@ export default function DakwahOSPortal() {
                             )}
                         </AnimatePresence>
 
-                        {/* Folder Grid (when no folder is active) */}
-                        {!activeKBFolder && (
+                        {/* Root View (Divisions & Umum) */}
+                        {!kbDivisionId && !kbFolderId && (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                 {allDivisions.map(div => {
-                                    const fileCount = knowledgeFiles.filter(f => f.folder === div.id || f.division_id === div.id).length;
+                                    const fileCount = knowledgeFiles.filter(f => f.division_id === div.id && !f.folder_id).length;
+                                    const folderCount = knowledgeFolders.filter(f => f.division_id === div.id && !f.parent_id).length;
                                     return (
-                                        <button key={div.id} onClick={() => { setActiveKBFolder(div.id); setShowKnowledgeForm(false); }} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition-all text-left group">
+                                        <button key={div.id} onClick={() => { setKbDivisionId(div.id); setShowKnowledgeForm(false); setShowCreateFolderForm(false); }} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition-all text-left group">
                                             <div className="w-14 h-12 bg-sky-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-sky-100 transition-colors">
                                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-sky-500">
                                                     <path d="M2 7V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7H11L9 5H4C2.9 5 2 5.9 2 7Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                                 </svg>
                                             </div>
                                             <h4 className="font-black text-slate-900 text-sm truncate">{div.name}</h4>
-                                            <p className="text-xs text-slate-400 font-bold mt-1">{fileCount} file</p>
+                                            <p className="text-xs text-slate-400 font-bold mt-1">{fileCount + folderCount} item</p>
                                         </button>
                                     );
                                 })}
                                 {/* Folder Umum */}
-                                <button onClick={() => { setActiveKBFolder('umum'); setShowKnowledgeForm(false); }} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:border-amber-300 hover:shadow-md transition-all text-left group">
+                                <button onClick={() => { setKbDivisionId('umum'); setShowKnowledgeForm(false); setShowCreateFolderForm(false); }} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:border-amber-300 hover:shadow-md transition-all text-left group">
                                     <div className="w-14 h-12 bg-amber-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-amber-100 transition-colors">
                                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-amber-500">
                                             <path d="M2 7V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7H11L9 5H4C2.9 5 2 5.9 2 7Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                         </svg>
                                     </div>
                                     <h4 className="font-black text-slate-900 text-sm">Folder Umum</h4>
-                                    <p className="text-xs text-slate-400 font-bold mt-1">{knowledgeFiles.filter(f => f.folder === 'umum' || (!allDivisions.some(d => d.id === f.folder) && f.folder !== 'umum' && !allDivisions.some(d => d.id === f.division_id))).length} file</p>
+                                    <p className="text-xs text-slate-400 font-bold mt-1">{knowledgeFiles.filter(f => !f.division_id && !f.folder_id).length + knowledgeFolders.filter(f => !f.division_id && !f.parent_id).length} item</p>
                                 </button>
                             </div>
                         )}
 
-                        {/* File List (when inside a folder) */}
-                        {activeKBFolder && (
+                        {/* File & Folder List (when inside a folder/division) */}
+                        {(kbDivisionId || kbFolderId) && (
                             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-slate-50 border-b border-slate-100">
                                             <tr>
-                                                <th className="py-3 px-6 font-bold text-slate-500">Nama File</th>
-                                                <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Diunggah Oleh</th>
+                                                <th className="py-3 px-6 font-bold text-slate-500">Nama</th>
+                                                <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Dibuat Oleh</th>
                                                 <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Ukuran</th>
                                                 <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Tanggal</th>
                                                 <th className="py-3 px-6 font-bold text-slate-500 text-right">Aksi</th>
@@ -1498,58 +1562,98 @@ export default function DakwahOSPortal() {
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
                                             {(() => {
-                                                const folderFiles = activeKBFolder === 'umum'
-                                                    ? knowledgeFiles.filter(f => f.folder === 'umum' || (!allDivisions.some(d => d.id === f.folder) && !allDivisions.some(d => d.id === f.division_id)))
-                                                    : knowledgeFiles.filter(f => f.folder === activeKBFolder || f.division_id === activeKBFolder);
+                                                const currentFolders = kbFolderId 
+                                                    ? knowledgeFolders.filter(f => f.parent_id === kbFolderId)
+                                                    : knowledgeFolders.filter(f => !f.parent_id && (kbDivisionId === 'umum' ? !f.division_id : f.division_id === kbDivisionId));
+                                                    
+                                                const currentFiles = kbFolderId
+                                                    ? knowledgeFiles.filter(f => f.folder_id === kbFolderId)
+                                                    : knowledgeFiles.filter(f => !f.folder_id && (kbDivisionId === 'umum' ? !f.division_id : f.division_id === kbDivisionId));
                                                 
-                                                if (folderFiles.length === 0) {
+                                                if (currentFolders.length === 0 && currentFiles.length === 0) {
                                                     return (
                                                         <tr><td colSpan={5} className="text-center py-12 text-slate-400">
                                                             <Database size={32} className="mx-auto mb-3 opacity-50" />
                                                             <p className="font-bold">Folder kosong</p>
-                                                            <p className="text-xs mt-1">Klik &quot;Unggah File&quot; untuk menambahkan file pertama.</p>
+                                                            <p className="text-xs mt-1">Klik "Unggah File" atau "Folder Baru" untuk mulai.</p>
                                                         </td></tr>
                                                     );
                                                 }
                                                 
-                                                return folderFiles.map(file => {
-                                                    const ext = file.file_url?.split('.').pop()?.toLowerCase() || '';
-                                                    const isPdf = ext === 'pdf';
-                                                    const isImage = ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
-                                                    const isDoc = ['doc','docx'].includes(ext);
-                                                    const iconColor = isPdf ? 'text-red-500 bg-red-50' : isImage ? 'text-purple-500 bg-purple-50' : isDoc ? 'text-blue-500 bg-blue-50' : 'text-slate-500 bg-slate-100';
-                                                    
-                                                    return (
-                                                        <tr key={file.id} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="py-3 px-6">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
-                                                                        <FileText size={16} />
+                                                return (
+                                                    <>
+                                                        {currentFolders.map(folder => (
+                                                            <tr key={folder.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setKbFolderId(folder.id)}>
+                                                                <td className="py-3 px-6">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-amber-500 bg-amber-50">
+                                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                                                <path d="M2 7V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7H11L9 5H4C2.9 5 2 5.9 2 7Z" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                                                            </svg>
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <p className="font-bold text-slate-900 truncate">{folder.name}</p>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="min-w-0">
-                                                                        <p className="font-bold text-slate-900 truncate">{file.title}</p>
-                                                                        <p className="text-[10px] text-slate-400 font-bold uppercase sm:hidden">{file.pengurus?.full_name} • {formatFileSize(file.file_size)}</p>
+                                                                </td>
+                                                                <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">-</td>
+                                                                <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">-</td>
+                                                                <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{new Date(folder.created_at).toLocaleDateString("id-ID")}</td>
+                                                                <td className="py-3 px-6" onClick={(e) => e.stopPropagation()}>
+                                                                    <div className="flex items-center justify-end gap-2">
+                                                                        {(!isReadOnly) && (
+                                                                            <button onClick={() => {
+                                                                                if(confirm('Hapus folder ini? Semua isi di dalamnya akan terhapus.')){
+                                                                                    supabase.from('knowledge_folders').delete().eq('id', folder.id).then(() => fetchDashboardData(selectedKabinetId));
+                                                                                }
+                                                                            }} className="text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors" title="Hapus Folder">
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        )}
                                                                     </div>
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{file.pengurus?.full_name || '-'}</td>
-                                                            <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{formatFileSize(file.file_size)}</td>
-                                                            <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{new Date(file.created_at).toLocaleDateString("id-ID")}</td>
-                                                            <td className="py-3 px-6">
-                                                                <div className="flex items-center justify-end gap-2">
-                                                                    <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 p-2 rounded-lg transition-colors" title="Download">
-                                                                        <Download size={16} />
-                                                                    </a>
-                                                                    {(file.uploaded_by === pengurus.id || isCoordinator) && !isReadOnly && (
-                                                                        <button onClick={() => deleteKnowledgeFile(file.id)} className="text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors" title="Hapus">
-                                                                            <Trash2 size={16} />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                });
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                        {currentFiles.map(file => {
+                                                            const ext = file.file_url?.split('.').pop()?.toLowerCase() || '';
+                                                            const isPdf = ext === 'pdf';
+                                                            const isImage = ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
+                                                            const isDoc = ['doc','docx'].includes(ext);
+                                                            const iconColor = isPdf ? 'text-red-500 bg-red-50' : isImage ? 'text-purple-500 bg-purple-50' : isDoc ? 'text-blue-500 bg-blue-50' : 'text-slate-500 bg-slate-100';
+                                                            
+                                                            return (
+                                                                <tr key={file.id} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="py-3 px-6">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+                                                                                <FileText size={16} />
+                                                                            </div>
+                                                                            <div className="min-w-0">
+                                                                                <p className="font-bold text-slate-900 truncate">{file.title}</p>
+                                                                                <p className="text-[10px] text-slate-400 font-bold uppercase sm:hidden">{file.pengurus?.full_name} • {formatFileSize(file.file_size)}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{file.pengurus?.full_name || '-'}</td>
+                                                                    <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{formatFileSize(file.file_size)}</td>
+                                                                    <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{new Date(file.created_at).toLocaleDateString("id-ID")}</td>
+                                                                    <td className="py-3 px-6">
+                                                                        <div className="flex items-center justify-end gap-2">
+                                                                            <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 p-2 rounded-lg transition-colors" title="Download">
+                                                                                <Download size={16} />
+                                                                            </a>
+                                                                            {(file.uploaded_by === pengurus.id || isCoordinator) && !isReadOnly && (
+                                                                                <button onClick={() => deleteKnowledgeFile(file.id)} className="text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors" title="Hapus">
+                                                                                    <Trash2 size={16} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </>
+                                                );
                                             })()}
                                         </tbody>
                                     </table>
