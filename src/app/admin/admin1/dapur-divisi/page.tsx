@@ -10,8 +10,9 @@ import {
 
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
 interface Proker { id: string; division_id: string; name: string; description: string; image_url: string; status: string; created_at: string; }
-interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
-
+interface Acara { id: string; proker_id: string; title: string; start_time: string; status: string; }
+interface Absensi { pengurus_id: string; acara_id: string; status: string; }
+interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { id: string, photo_url: string, full_name: string, jabatan: string }; staffs: { id: string, photo_url: string, full_name: string, jabatan: string }[] }
 export default function AdminDapurDivisi() {
     const role = "admin1";
     const [loading, setLoading] = useState(true);
@@ -27,6 +28,9 @@ export default function AdminDapurDivisi() {
     // Data States
     const [allDivisions, setAllDivisions] = useState<DivisionData[]>([]);
     const [prokers, setProkers] = useState<Proker[]>([]);
+    const [acaras, setAcaras] = useState<Acara[]>([]);
+    const [absensiData, setAbsensiData] = useState<Absensi[]>([]);
+    const [expandedAcaraId, setExpandedAcaraId] = useState<string | null>(null);
     
     // Form States
     const [showProkerForm, setShowProkerForm] = useState(false);
@@ -80,7 +84,7 @@ export default function AdminDapurDivisi() {
             const { data: divData } = await supabase.from("divisions").select("*");
             if (divData) {
                 const enrichedDivs = await Promise.all(divData.map(async (div) => {
-                    const { data: pData } = await supabase.from("pengurus").select("full_name, jabatan, role_level, photo_url").eq("division_id", div.id).eq("kabinet_id", kabinet_id);
+                    const { data: pData } = await supabase.from("pengurus").select("id, full_name, jabatan, role_level, photo_url").eq("division_id", div.id).eq("kabinet_id", kabinet_id);
                     const coordinator = pData?.find(p => ["div_ketua", "lso_ketua", "ketuum"].includes(p.role_level));
                     const staffs = pData?.filter(p => !["div_ketua", "lso_ketua", "ketuum"].includes(p.role_level)) || [];
                     return { ...div, coordinator, staffs };
@@ -91,6 +95,14 @@ export default function AdminDapurDivisi() {
             // Fetch Prokers
             const { data: prData } = await supabase.from("prokers").select("*").eq("kabinet_id", kabinet_id).order("created_at", { ascending: false });
             if (prData) setProkers(prData);
+
+            // Fetch Acaras
+            const { data: aData } = await supabase.from("acara_internal").select("id, proker_id, title, start_time, status").eq("kabinet_id", kabinet_id);
+            if (aData) setAcaras(aData);
+
+            // Fetch Absensi
+            const { data: abData } = await supabase.from("absensi_digital").select("pengurus_id, acara_id, status");
+            if (abData) setAbsensiData(abData);
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -211,7 +223,8 @@ export default function AdminDapurDivisi() {
                                 <div className="flex border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
                                     {[
                                         { id: "profil", icon: <Briefcase size={16}/>, label: "Profil Divisi" },
-                                        { id: "proker", icon: <TargetIcon size={16}/>, label: "Program Kerja" }
+                                        { id: "proker", icon: <TargetIcon size={16}/>, label: "Program Kerja" },
+                                        { id: "acara", icon: <Calendar size={16}/>, label: "Detail Acara & Absensi" }
                                     ].map(tab => (
                                         <button key={tab.id} onClick={() => setDivisiSubTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${divisiSubTab === tab.id ? 'border-sky-500 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                                             {tab.icon} {tab.label}
@@ -354,6 +367,75 @@ export default function AdminDapurDivisi() {
                                                     </div>
                                                 )
                                             ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* SUB-TAB 3: DETAIL ACARA & ABSENSI */}
+                                {divisiSubTab === "acara" && (
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                        <h4 className="font-black text-slate-900 mb-6 text-lg">Log Absensi Acara Divisi</h4>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-sm">
+                                                <thead>
+                                                    <tr className="border-b-2 border-slate-100 text-slate-500 font-bold">
+                                                        <th className="pb-3 px-4">Nama Acara</th>
+                                                        <th className="pb-3 px-4">Waktu</th>
+                                                        <th className="pb-3 px-4 text-center">Status Acara</th>
+                                                        <th className="pb-3 px-4 text-center">Rasio Kehadiran</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {acaras.filter(a => prokers.find(p => p.id === a.proker_id && p.division_id === activeDivisiId)).length === 0 && (
+                                                        <tr><td colSpan={4} className="text-center py-8 text-slate-400 font-medium">Belum ada acara.</td></tr>
+                                                    )}
+                                                    {acaras.filter(a => prokers.find(p => p.id === a.proker_id && p.division_id === activeDivisiId)).map(acara => {
+                                                        const eventStaffs = activeDivisionData.staffs;
+                                                        const eventAbsensi = absensiData.filter(ab => ab.acara_id === acara.id);
+                                                        const hadirCount = eventStaffs.filter(s => eventAbsensi.find(ab => ab.pengurus_id === s.id && ab.status === 'hadir')).length;
+                                                        const rasioStr = `${hadirCount}/${eventStaffs.length} Staff Hadir`;
+                                                        const isExpanded = expandedAcaraId === acara.id;
+
+                                                        return (
+                                                            <React.Fragment key={acara.id}>
+                                                                <tr onClick={() => setExpandedAcaraId(isExpanded ? null : acara.id)} className="cursor-pointer hover:bg-slate-50 transition-colors group">
+                                                                    <td className="py-4 px-4 font-bold text-slate-900 group-hover:text-sky-600 transition-colors">{acara.title}</td>
+                                                                    <td className="py-4 px-4 text-slate-500">{new Date(acara.start_time).toLocaleDateString('id-ID')}</td>
+                                                                    <td className="py-4 px-4 text-center"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${acara.status === 'completed' ? 'bg-slate-100 text-slate-500' : 'bg-sky-100 text-sky-600'}`}>{acara.status}</span></td>
+                                                                    <td className="py-4 px-4 text-center font-bold text-slate-700">{rasioStr}</td>
+                                                                </tr>
+                                                                {isExpanded && (
+                                                                    <tr>
+                                                                        <td colSpan={4} className="p-0 border-0 bg-slate-50">
+                                                                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="px-8 py-6 border-b border-slate-200">
+                                                                                <h5 className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-4">Detail Kehadiran Staff:</h5>
+                                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                                    {eventStaffs.map(staff => {
+                                                                                        const st = eventAbsensi.find(ab => ab.pengurus_id === staff.id)?.status || 'alpa';
+                                                                                        return (
+                                                                                            <div key={staff.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                                                                                <div className="flex items-center gap-2">
+                                                                                                    <img src={staff.photo_url || 'https://via.placeholder.com/30'} className="w-8 h-8 rounded-full object-cover"/>
+                                                                                                    <div>
+                                                                                                        <p className="text-xs font-bold text-slate-900 line-clamp-1">{staff.full_name}</p>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded uppercase ${st === 'hadir' ? 'bg-green-100 text-green-700' : st === 'izin' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                                                                                    {st}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
+                                                                            </motion.div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        )
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 )}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
     LogOut, User, Calendar, CheckCircle, Clock, Plus, Briefcase, 
-    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2
+    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5Qrcode } from "html5-qrcode";
@@ -18,8 +18,9 @@ interface Acara { id: string; proker_id?: string; title: string; description: st
 interface Proker { id: string; division_id: string; name: string; description: string; image_url: string; status: string; created_at: string; }
 interface Task { id: string; proker_id: string; title: string; description: string; assigned_to: string | null; is_completed: boolean; pengurus?: { full_name: string }; prokers?: { name: string } }
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
-interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; pengurus?: { full_name: string } }
+interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; catatan_revisi?: string; pengurus?: { full_name: string } }
 interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
+interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; pengurus?: { full_name: string } }
 
 export default function DakwahOSPortal() {
     const router = useRouter();
@@ -32,7 +33,7 @@ export default function DakwahOSPortal() {
     const isReadOnly = kabinets.find(k => k.id === selectedKabinetId)?.is_active === false;
 
     // View States
-    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault" | "agenda">("dashboard");
+    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault" | "agenda" | "arsip">("dashboard");
     const [activeDivisiId, setActiveDivisiId] = useState<string | null>(null);
     const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker" | "acara">("profil");
     
@@ -44,6 +45,7 @@ export default function DakwahOSPortal() {
     const [prokers, setProkers] = useState<Proker[]>([]);
     const [allTasks, setAllTasks] = useState<Task[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
+    const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBase[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<{name: string, total: number, done: number, kpi: number}[]>([]);
     
     // Form States
@@ -55,6 +57,8 @@ export default function DakwahOSPortal() {
     const [newTask, setNewTask] = useState({ proker_id: "", title: "", description: "", assigned_to: "" });
     const [showDocForm, setShowDocForm] = useState(false);
     const [docUpload, setDocUpload] = useState({ title: "", type: "proposal", file_url: "" });
+    const [showKnowledgeForm, setShowKnowledgeForm] = useState(false);
+    const [knowledgeForm, setKnowledgeForm] = useState({ title: '', folder: 'arsip_lpj', file_url: '' });
 
     // Edit Division & Proker States
     const [isEditingDivision, setIsEditingDivision] = useState(false);
@@ -231,6 +235,8 @@ export default function DakwahOSPortal() {
     };
 
     const isCoordinator = pengurus && ["ketuum", "wakil", "div_ketua", "lso_ketua"].includes(pengurus.role_level);
+    const isBendahara = pengurus && pengurus.role_level.startsWith("bendahara");
+    const isSekretaris = pengurus && pengurus.role_level.startsWith("sekretaris");
     
     // KPI Calculation
     const totalAcara = acaras.length;
@@ -311,10 +317,59 @@ export default function DakwahOSPortal() {
     const submitDocument = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!docUpload.title || !docUpload.file_url || isReadOnly) return;
-        await supabase.from("documents").insert([{ kabinet_id: selectedKabinetId, division_id: pengurus!.division_id, title: docUpload.title, type: docUpload.type, file_url: docUpload.file_url, uploaded_by: pengurus!.id }]);
+        await supabase.from("documents").insert([{ 
+            kabinet_id: selectedKabinetId, 
+            division_id: pengurus!.division_id, 
+            title: docUpload.title, 
+            type: docUpload.type, 
+            file_url: docUpload.file_url, 
+            uploaded_by: pengurus!.id,
+            status: 'cek_bendahara'
+        }]);
         setShowDocForm(false);
         setDocUpload({ title: "", type: "proposal", file_url: "" });
         fetchDashboardData(selectedKabinetId);
+    };
+
+    const submitKnowledge = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!knowledgeForm.title || !knowledgeForm.file_url || isReadOnly) return;
+        await supabase.from("knowledge_base").insert([{ 
+            title: knowledgeForm.title, 
+            folder: knowledgeForm.folder, 
+            file_url: knowledgeForm.file_url, 
+            uploaded_by: pengurus!.id 
+        }]);
+        setShowKnowledgeForm(false);
+        setKnowledgeForm({ title: '', folder: 'arsip_lpj', file_url: '' });
+        fetchDashboardData(selectedKabinetId);
+    };
+
+    const handleDocumentAction = async (docId: string, action: 'acc_bendahara' | 'revisi_bendahara' | 'acc_sekretaris' | 'revisi_sekretaris') => {
+        if (isReadOnly) return;
+        let payload: any = {};
+        
+        if (action === 'acc_bendahara') {
+            payload = { status: 'cek_sekretaris', reviewed_by_bendahara: pengurus!.id, catatan_revisi: null };
+        } else if (action === 'revisi_bendahara') {
+            const note = window.prompt("Masukkan catatan revisi untuk staf:");
+            if (note === null) return;
+            payload = { status: 'revisi_bendahara', catatan_revisi: note, reviewed_by_bendahara: pengurus!.id };
+        } else if (action === 'acc_sekretaris') {
+            payload = { status: 'approved', reviewed_by_sekretaris: pengurus!.id, catatan_revisi: null };
+            // In a real implementation, you would also trigger a server action here to stamp the PDF
+        } else if (action === 'revisi_sekretaris') {
+            const note = window.prompt("Masukkan catatan revisi untuk staf / bendahara:");
+            if (note === null) return;
+            payload = { status: 'revisi_sekretaris', catatan_revisi: note, reviewed_by_sekretaris: pengurus!.id };
+        }
+
+        const { error } = await supabase.from("documents").update(payload).eq("id", docId);
+        if (error) {
+            alert("Gagal memproses dokumen: " + error.message);
+        } else {
+            fetchDashboardData(selectedKabinetId);
+        }
     };
 
     const submitAcara = async (e: React.FormEvent) => {
@@ -507,12 +562,13 @@ export default function DakwahOSPortal() {
                 
                 {/* Main Navigation Tabs */}
                 {!activeDivisiId && (
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-8 w-full max-w-2xl mx-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-8 w-full max-w-4xl mx-auto">
     {[
         { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
         { id: "agenda", icon: <Calendar size={18} />, label: "Agenda & Rapat" },
         { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
-        { id: "vault", icon: <Archive size={18} />, label: "Vault Approval" }
+        { id: "vault", icon: <FileText size={18} />, label: "Vault Approval" },
+        { id: "arsip", icon: <Book size={18} />, label: "Knowledge Base" }
     ].map((tab) => (
         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center justify-center gap-2 py-3 px-4 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"} w-full`}
@@ -1221,21 +1277,52 @@ export default function DakwahOSPortal() {
                                                 
                                                 {/* Approval Flow Visualizer */}
                                                 <div className="flex items-center gap-2 mt-4 overflow-x-auto hide-scrollbar pb-1">
-                                                    {['draft', 'ditinjau_bendahara', 'ditinjau_sekretaris', 'approved'].map((step, idx, arr) => {
-                                                        const statusMap: any = { draft: 0, ditinjau_bendahara: 1, ditinjau_sekretaris: 2, approved: 3 };
+                                                    {['draft', 'cek_bendahara', 'cek_sekretaris', 'approved'].map((step, idx, arr) => {
+                                                        const statusMap: any = { draft: 0, cek_bendahara: 1, revisi_bendahara: 1, cek_sekretaris: 2, revisi_sekretaris: 2, approved: 3 };
                                                         const docStatusVal = statusMap[doc.status] || 0;
-                                                        const isPast = idx <= docStatusVal;
+                                                        const isPast = idx < docStatusVal;
                                                         const isCurrent = idx === docStatusVal;
+                                                        
+                                                        // Jika status saat ini adalah revisi, tandai merah pada tahap tersebut
+                                                        const isRevisionHere = isCurrent && doc.status.includes('revisi');
+                                                        
+                                                        let colorClasses = 'bg-slate-200 text-slate-400';
+                                                        if (isRevisionHere) colorClasses = 'bg-red-500 text-white shadow-md animate-pulse';
+                                                        else if (isCurrent) colorClasses = 'bg-sky-500 text-white shadow-md animate-pulse';
+                                                        else if (isPast) colorClasses = 'bg-green-100 text-green-700';
+
                                                         return (
                                                             <div key={step} className="flex items-center">
-                                                                <div className={`flex items-center justify-center h-6 w-auto px-3 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-colors ${isCurrent ? 'bg-sky-500 text-white shadow-md' : isPast ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-400'}`}>
+                                                                <div className={`flex items-center justify-center h-6 w-auto px-3 rounded-full text-[10px] font-black uppercase whitespace-nowrap transition-colors ${colorClasses}`}>
                                                                     {isPast && !isCurrent ? <Check size={10} className="mr-1"/> : null}
-                                                                    {step.replace('ditinjau_', 'Cek ')}
+                                                                    {isRevisionHere ? 'REVISI' : step.replace('cek_', 'Cek ')}
                                                                 </div>
                                                                 {idx < arr.length - 1 && <div className={`w-4 h-0.5 mx-1 ${idx < docStatusVal ? 'bg-green-400' : 'bg-slate-200'}`}></div>}
                                                             </div>
                                                         )
                                                     })}
+                                                </div>
+                                                {doc.catatan_revisi && doc.status.includes('revisi') && (
+                                                    <div className="mt-3 bg-red-50 border border-red-100 p-3 rounded-xl">
+                                                        <p className="text-xs font-black text-red-600 mb-1 flex items-center gap-1"><AlertTriangle size={12}/> Catatan Revisi:</p>
+                                                        <p className="text-xs text-red-700 font-medium">{doc.catatan_revisi}</p>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Action Buttons for Approvers */}
+                                                <div className="flex gap-2 mt-4">
+                                                    {isBendahara && doc.status === 'cek_bendahara' && !isReadOnly && (
+                                                        <>
+                                                            <button onClick={() => handleDocumentAction(doc.id, 'acc_bendahara')} className="bg-green-500 hover:bg-green-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1"><Check size={14}/> ACC Bendahara</button>
+                                                            <button onClick={() => handleDocumentAction(doc.id, 'revisi_bendahara')} className="bg-red-500 hover:bg-red-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1"><X size={14}/> Revisi</button>
+                                                        </>
+                                                    )}
+                                                    {isSekretaris && doc.status === 'cek_sekretaris' && !isReadOnly && (
+                                                        <>
+                                                            <button onClick={() => handleDocumentAction(doc.id, 'acc_sekretaris')} className="bg-green-500 hover:bg-green-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1"><Check size={14}/> ACC Sekretaris</button>
+                                                            <button onClick={() => handleDocumentAction(doc.id, 'revisi_sekretaris')} className="bg-red-500 hover:bg-red-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1"><X size={14}/> Revisi</button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1245,6 +1332,136 @@ export default function DakwahOSPortal() {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* VIEW 4: KNOWLEDGE MANAGEMENT (ARSIP TERSTRUKTUR) */}
+                {activeTab === "arsip" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h3 className="font-black text-xl text-slate-900">Knowledge Management</h3>
+                                <p className="text-sm font-medium text-slate-500">Arsip terstruktur untuk panduan, kurikulum, dan aset organisasi.</p>
+                            </div>
+                            {/* Hanya POH yang bisa unggah file baru (ketuum, wakil, sekretaris, bendahara) */}
+                            {["ketuum", "wakil", "sekretaris1", "sekretaris2", "bendahara1", "bendahara2"].includes(pengurus.role_level) && !isReadOnly && (
+                                <button onClick={() => setShowKnowledgeForm(!showKnowledgeForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                    <Upload size={16} /> Tambah Arsip
+                                </button>
+                            )}
+                        </div>
+
+                        <AnimatePresence>
+                            {showKnowledgeForm && !isReadOnly && (
+                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitKnowledge} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <input required type="text" placeholder="Judul Arsip (Misal: Guideline Desain)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value})} />
+                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.folder} onChange={e => setKnowledgeForm({...knowledgeForm, folder: e.target.value})}>
+                                            <option value="arsip_lpj">Arsip LPJ / Proposal Lama</option>
+                                            <option value="aset_desain">Aset Desain & Logo</option>
+                                            <option value="kurikulum">Kurikulum Kaderisasi</option>
+                                            <option value="database_eksternal">Database Eksternal & Surat</option>
+                                        </select>
+                                    </div>
+                                    <input required type="text" placeholder="URL File (Gunakan Google Drive Link atau Upload langsung di Supabase Storage)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.file_url} onChange={e => setKnowledgeForm({...knowledgeForm, file_url: e.target.value})} />
+                                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">Simpan Arsip</button>
+                                </motion.form>
+                            )}
+                        </AnimatePresence>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {['arsip_lpj', 'aset_desain', 'kurikulum', 'database_eksternal'].map(folder => {
+                                const folderFiles = knowledgeFiles.filter(f => f.folder === folder);
+                                const folderLabels: any = { arsip_lpj: 'Arsip Dokumen', aset_desain: 'Aset Desain', kurikulum: 'Kurikulum', database_eksternal: 'Database Umum' };
+                                const folderIcons: any = { arsip_lpj: <FileText size={20} className="text-rose-500"/>, aset_desain: <Image size={20} className="text-purple-500"/>, kurikulum: <Book size={20} className="text-emerald-500"/>, database_eksternal: <Database size={20} className="text-amber-500"/> };
+                                
+                                return (
+                                    <div key={folder} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:border-sky-300 transition-colors">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">{folderIcons[folder]}</div>
+                                            <h4 className="font-black text-slate-900">{folderLabels[folder]}</h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {folderFiles.length === 0 && <p className="text-xs text-slate-400 font-bold">Folder kosong.</p>}
+                                            {folderFiles.map(file => (
+                                                <a key={file.id} href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-sky-50 transition-colors group">
+                                                    <div className="flex-1 min-w-0 pr-4">
+                                                        <p className="text-sm font-bold text-slate-700 truncate group-hover:text-sky-700">{file.title}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold">Oleh: {file.pengurus?.full_name}</p>
+                                                    </div>
+                                                    <Download size={14} className="text-slate-400 group-hover:text-sky-500 flex-shrink-0" />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* VIEW 4: KNOWLEDGE MANAGEMENT (ARSIP TERSTRUKTUR) */}
+                {activeTab === "arsip" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h3 className="font-black text-xl text-slate-900">Knowledge Management</h3>
+                                <p className="text-sm font-medium text-slate-500">Arsip terstruktur untuk panduan, kurikulum, dan aset organisasi.</p>
+                            </div>
+                            {/* Hanya POH yang bisa unggah file baru (ketuum, wakil, sekretaris, bendahara) */}
+                            {["ketuum", "wakil", "sekretaris1", "sekretaris2", "bendahara1", "bendahara2"].includes(pengurus.role_level) && !isReadOnly && (
+                                <button onClick={() => setShowKnowledgeForm(!showKnowledgeForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                    <Upload size={16} /> Tambah Arsip
+                                </button>
+                            )}
+                        </div>
+
+                        <AnimatePresence>
+                            {showKnowledgeForm && !isReadOnly && (
+                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitKnowledge} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <input required type="text" placeholder="Judul Arsip (Misal: Guideline Desain)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value})} />
+                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.folder} onChange={e => setKnowledgeForm({...knowledgeForm, folder: e.target.value})}>
+                                            <option value="arsip_lpj">Arsip LPJ / Proposal Lama</option>
+                                            <option value="aset_desain">Aset Desain & Logo</option>
+                                            <option value="kurikulum">Kurikulum Kaderisasi</option>
+                                            <option value="database_eksternal">Database Eksternal & Surat</option>
+                                        </select>
+                                    </div>
+                                    <input required type="text" placeholder="URL File (Gunakan Google Drive Link atau Upload langsung di Supabase Storage)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.file_url} onChange={e => setKnowledgeForm({...knowledgeForm, file_url: e.target.value})} />
+                                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">Simpan Arsip</button>
+                                </motion.form>
+                            )}
+                        </AnimatePresence>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {['arsip_lpj', 'aset_desain', 'kurikulum', 'database_eksternal'].map(folder => {
+                                const folderFiles = knowledgeFiles.filter(f => f.folder === folder);
+                                const folderLabels: any = { arsip_lpj: 'Arsip Dokumen', aset_desain: 'Aset Desain', kurikulum: 'Kurikulum', database_eksternal: 'Database Umum' };
+                                const folderIcons: any = { arsip_lpj: <FileText size={20} className="text-rose-500"/>, aset_desain: <ImageIcon size={20} className="text-purple-500"/>, kurikulum: <Book size={20} className="text-emerald-500"/>, database_eksternal: <Database size={20} className="text-amber-500"/> };
+                                
+                                return (
+                                    <div key={folder} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:border-sky-300 transition-colors">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">{folderIcons[folder]}</div>
+                                            <h4 className="font-black text-slate-900">{folderLabels[folder]}</h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {folderFiles.length === 0 && <p className="text-xs text-slate-400 font-bold">Folder kosong.</p>}
+                                            {folderFiles.map(file => (
+                                                <a key={file.id} href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-sky-50 transition-colors group">
+                                                    <div className="flex-1 min-w-0 pr-4">
+                                                        <p className="text-sm font-bold text-slate-700 truncate group-hover:text-sky-700">{file.title}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold">Oleh: {file.pengurus?.full_name}</p>
+                                                    </div>
+                                                    <Download size={14} className="text-slate-400 group-hover:text-sky-500 flex-shrink-0" />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </motion.div>
                 )}
