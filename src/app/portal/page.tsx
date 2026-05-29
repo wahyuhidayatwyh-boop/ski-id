@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
     LogOut, User, Calendar, CheckCircle, Clock, Plus, Briefcase, 
-    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, ChevronRight, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon, Menu
+    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, ChevronRight, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon, Menu, DollarSign, ArrowUpRight, ArrowDownRight, Wallet, PieChart
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5Qrcode } from "html5-qrcode";
@@ -22,6 +22,8 @@ interface Document { id: string; title: string; type: string; file_url: string; 
 interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
 interface KnowledgeFolder { id: string; name: string; parent_id: string | null; kabinet_id: string; division_id: string | null; created_by: string; created_at: string; }
 interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; division_id?: string; folder_id?: string; file_size?: number; file_type?: string; kabinet_id?: string; pengurus?: { full_name: string }; divisions?: { name: string } }
+interface KeuanganTransaksi { id: string; kabinet_id: string; division_id: string | null; type: 'IN' | 'OUT'; kategori: string; amount: number; description: string; tanggal: string; created_by: string; created_at: string; pengurus?: { full_name: string }; divisions?: { name: string } }
+interface SaldoDivisi { division_id: string; division_name: string; kabinet_id: string; kabinet_name: string; total_pemasukan: number; total_pengeluaran: number; saldo_akhir: number; }
 const getLocalDatetimeLocal = (dateString: string | undefined) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -41,7 +43,7 @@ export default function DakwahOSPortal() {
     const isReadOnly = kabinets.find(k => k.id === selectedKabinetId)?.is_active === false;
 
     // View States
-    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault" | "agenda" | "arsip">("dashboard");
+    const [activeTab, setActiveTab] = useState<"dashboard" | "divisi" | "vault" | "agenda" | "arsip" | "keuangan">("dashboard");
     const [activeDivisiId, setActiveDivisiId] = useState<string | null>(null);
     const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker" | "acara">("profil");
     const [showMobileNav, setShowMobileNav] = useState(false);
@@ -57,6 +59,12 @@ export default function DakwahOSPortal() {
     const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBase[]>([]);
     const [knowledgeFolders, setKnowledgeFolders] = useState<KnowledgeFolder[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<{name: string, total: number, done: number, kpi: number}[]>([]);
+    
+    // Keuangan States
+    const [transaksiKeuangan, setTransaksiKeuangan] = useState<KeuanganTransaksi[]>([]);
+    const [saldoDivisiList, setSaldoDivisiList] = useState<SaldoDivisi[]>([]);
+    const [showKeuanganForm, setShowKeuanganForm] = useState(false);
+    const [keuanganForm, setKeuanganForm] = useState<{ type: 'IN' | 'OUT', kategori: string, amount: string, description: string, tanggal: string, division_id: string }>({ type: 'IN', kategori: 'Donasi', amount: '', description: '', tanggal: new Date().toISOString().split('T')[0], division_id: '' });
     
     // Form States
     const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -255,6 +263,13 @@ export default function DakwahOSPortal() {
             const { data: kbFolders } = await supabase.from("knowledge_folders").select("*").eq("kabinet_id", kabinet_id).order("name", { ascending: true });
             if (kbFolders) setKnowledgeFolders(kbFolders as any);
 
+            // Keuangan Transaksi
+            const { data: trxData } = await supabase.from("keuangan_transaksi").select("*, pengurus:created_by(full_name), divisions:division_id(name)").eq("kabinet_id", kabinet_id).order("tanggal", { ascending: false }).order("created_at", { ascending: false });
+            if (trxData) setTransaksiKeuangan(trxData as any);
+
+            // Saldo Divisi
+            const { data: saldoData } = await supabase.from("vw_saldo_divisi").select("*").eq("kabinet_id", kabinet_id).order("division_name", { ascending: true });
+            if (saldoData) setSaldoDivisiList(saldoData as any);
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
         } finally {
@@ -401,6 +416,33 @@ export default function DakwahOSPortal() {
             setNewFolderName('');
             fetchDashboardData(selectedKabinetId);
         } catch (err) { console.error(err); }
+    };
+
+    const submitKeuangan = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isReadOnly || !isBendahara) return;
+        try {
+            await supabase.from("keuangan_transaksi").insert([{
+                kabinet_id: selectedKabinetId,
+                division_id: keuanganForm.division_id || null,
+                type: keuanganForm.type,
+                kategori: keuanganForm.kategori,
+                amount: parseFloat(keuanganForm.amount.replace(/[^0-9.-]+/g, "")),
+                description: keuanganForm.description,
+                tanggal: keuanganForm.tanggal,
+                created_by: pengurus!.id
+            }]);
+            setShowKeuanganForm(false);
+            setKeuanganForm({ type: 'IN', kategori: 'Donasi', amount: '', description: '', tanggal: new Date().toISOString().split('T')[0], division_id: '' });
+            fetchDashboardData(selectedKabinetId);
+        } catch (err) { console.error(err); }
+    };
+
+    const deleteKeuangan = async (id: string) => {
+        if (isReadOnly || !isBendahara) return;
+        if (!confirm('Hapus transaksi ini?')) return;
+        await supabase.from('keuangan_transaksi').delete().eq('id', id);
+        fetchDashboardData(selectedKabinetId);
     };
 
     const deleteKnowledgeFile = async (id: string) => {
@@ -639,13 +681,14 @@ export default function DakwahOSPortal() {
                 {/* Main Navigation Tabs */}
                 {!activeDivisiId && (
                     <div className={`${showMobileNav ? 'block' : 'hidden'} sm:block mb-8`}>
-                        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 w-full max-w-4xl mx-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-2 w-full max-w-6xl mx-auto">
                             {[
                                 { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
                                 { id: "agenda", icon: <Calendar size={18} />, label: "Timeline Proker" },
                                 { id: "divisi", icon: <Users size={18} />, label: "Ruang Divisi" },
                                 { id: "vault", icon: <FileText size={18} />, label: "Persetujuan Proposal" },
-                                { id: "arsip", icon: <Book size={18} />, label: "Penyimpanan Berkas" }
+                                { id: "arsip", icon: <Book size={18} />, label: "Penyimpanan Berkas" },
+                                { id: "keuangan", icon: <DollarSign size={18} />, label: "Transparansi Keuangan" }
                             ].map((tab) => (
                                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setShowMobileNav(false); }}
                                     className={`flex items-center justify-center sm:justify-center justify-start gap-3 py-3 px-4 text-sm font-bold rounded-xl transition-all ${activeTab === tab.id ? "bg-slate-900 text-white shadow-md" : "bg-white sm:bg-transparent border border-slate-200 sm:border-none text-slate-500 hover:bg-slate-50"} w-full`}
@@ -1770,6 +1813,184 @@ export default function DakwahOSPortal() {
                                 </div>
                             </div>
                         )}
+                    </motion.div>
+                )}
+
+                {/* VIEW 5: TRANSPARANSI KEUANGAN */}
+                {activeTab === "keuangan" && !activeDivisiId && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                        
+                        {/* Header Transparansi Keuangan */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h3 className="font-black text-xl text-slate-900">Transparansi Keuangan</h3>
+                                <p className="text-sm font-medium text-slate-500">Pemantauan dana organisasi dan jatah kas divisi.</p>
+                            </div>
+                            {isBendahara && !isReadOnly && (
+                                <button onClick={() => setShowKeuanganForm(!showKeuanganForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
+                                    <Plus size={16} /> Catat Transaksi
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Ringkasan Saldo Organisasi (Total) */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 bg-green-50 text-green-500 rounded-xl flex items-center justify-center"><ArrowDownRight size={20}/></div>
+                                    <h4 className="font-bold text-slate-500 text-sm">Total Pemasukan</h4>
+                                </div>
+                                <p className="text-2xl font-black text-slate-900">Rp {transaksiKeuangan.filter(t => t.type === 'IN').reduce((acc, val) => acc + val.amount, 0).toLocaleString('id-ID')}</p>
+                            </div>
+                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><ArrowUpRight size={20}/></div>
+                                    <h4 className="font-bold text-slate-500 text-sm">Total Pengeluaran</h4>
+                                </div>
+                                <p className="text-2xl font-black text-slate-900">Rp {transaksiKeuangan.filter(t => t.type === 'OUT').reduce((acc, val) => acc + val.amount, 0).toLocaleString('id-ID')}</p>
+                            </div>
+                            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm text-white relative overflow-hidden">
+                                <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4">
+                                    <Wallet size={120} />
+                                </div>
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-10 h-10 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center"><DollarSign size={20}/></div>
+                                        <h4 className="font-bold text-sky-100 text-sm">Saldo Saat Ini</h4>
+                                    </div>
+                                    <p className="text-2xl font-black text-white">Rp {transaksiKeuangan.reduce((acc, val) => acc + (val.type === 'IN' ? val.amount : -val.amount), 0).toLocaleString('id-ID')}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Form Transaksi (Hanya Bendahara) */}
+                        <AnimatePresence>
+                            {showKeuanganForm && isBendahara && !isReadOnly && (
+                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitKeuangan} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
+                                    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Jenis Transaksi</label>
+                                            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={keuanganForm.type} onChange={e => setKeuanganForm({...keuanganForm, type: e.target.value as any})}>
+                                                <option value="IN">Pemasukan (IN)</option>
+                                                <option value="OUT">Pengeluaran (OUT)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Kategori</label>
+                                            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={keuanganForm.kategori} onChange={e => setKeuanganForm({...keuanganForm, kategori: e.target.value})}>
+                                                <option value="Donasi">Donasi / Infaq</option>
+                                                <option value="Kas Anggota">Uang Kas</option>
+                                                <option value="Jatah Anggaran Divisi">Jatah Anggaran Divisi</option>
+                                                <option value="Operasional">Operasional (Umum)</option>
+                                                <option value="Proker Divisi">Pengeluaran Proker</option>
+                                                <option value="Lain-lain">Lain-lain</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Nominal (Rp)</label>
+                                            <input required type="text" placeholder="500000" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={keuanganForm.amount} onChange={e => {
+                                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                                const formatted = val ? parseInt(val).toLocaleString('id-ID') : '';
+                                                setKeuanganForm({...keuanganForm, amount: formatted});
+                                            }} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Tanggal</label>
+                                            <input required type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={keuanganForm.tanggal} onChange={e => setKeuanganForm({...keuanganForm, tanggal: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Keterangan / Deskripsi</label>
+                                            <input required type="text" placeholder="Misal: Beli konsumsi rapat" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={keuanganForm.description} onChange={e => setKeuanganForm({...keuanganForm, description: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Kaitkan ke Divisi (Opsional)</label>
+                                            <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={keuanganForm.division_id} onChange={e => setKeuanganForm({...keuanganForm, division_id: e.target.value})}>
+                                                <option value="">-- Umum / Tanpa Divisi --</option>
+                                                {allDivisions.map(d => (
+                                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[10px] text-slate-400 mt-1">*Jika terkait dengan budget suatu divisi</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-3 mt-6">
+                                        <button type="button" onClick={() => setShowKeuanganForm(false)} className="px-6 py-3 font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
+                                        <button type="submit" className="px-6 py-3 font-bold text-white bg-sky-500 rounded-xl hover:bg-sky-600 transition-colors shadow-md shadow-sky-500/20">Simpan Transaksi</button>
+                                    </div>
+                                </motion.form>
+                            )}
+                        </AnimatePresence>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Saldo Per Divisi */}
+                            <div className="lg:col-span-1 space-y-4">
+                                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+                                    <h4 className="font-black text-slate-900 flex items-center gap-2 mb-4"><PieChart size={18} className="text-sky-500" /> Transparansi Kas Divisi</h4>
+                                    <p className="text-xs text-slate-500 mb-4">Setiap transaksi IN/OUT yang dikaitkan dengan divisi akan mengubah sisa saldo kas divisi tersebut.</p>
+                                    <div className="space-y-3">
+                                        {saldoDivisiList.length === 0 ? <p className="text-xs font-bold text-slate-400 text-center py-4">Belum ada data</p> : null}
+                                        {saldoDivisiList.map(sd => {
+                                            const isNegative = sd.saldo_akhir < 0;
+                                            return (
+                                                <div key={sd.division_id} className="p-3 border border-slate-100 bg-slate-50 rounded-xl flex items-center justify-between hover:border-sky-200 transition-colors">
+                                                    <div>
+                                                        <h5 className="font-bold text-slate-800 text-sm">{sd.division_name}</h5>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={`font-black text-sm ${isNegative ? 'text-red-600' : 'text-green-600'}`}>Rp {sd.saldo_akhir.toLocaleString('id-ID')}</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Histori Transaksi */}
+                            <div className="lg:col-span-2">
+                                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm h-full">
+                                    <h4 className="font-black text-slate-900 mb-4">Buku Kas (Histori Transaksi)</h4>
+                                    {transaksiKeuangan.length === 0 && (
+                                        <p className="text-center font-bold text-slate-400 py-10">Belum ada transaksi tercatat.</p>
+                                    )}
+                                    <div className="space-y-3">
+                                        {transaksiKeuangan.map(trx => (
+                                            <div key={trx.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl gap-4 hover:border-slate-200 transition-colors">
+                                                <div className="flex items-start gap-4 flex-1 min-w-0">
+                                                    <div className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border ${trx.type === 'IN' ? 'bg-green-50 text-green-500 border-green-100' : 'bg-red-50 text-red-500 border-red-100'}`}>
+                                                        {trx.type === 'IN' ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 mb-1 w-full overflow-hidden">
+                                                            <h5 className="font-black text-slate-900 text-sm truncate flex-shrink min-w-0">{trx.description}</h5>
+                                                            <span className="text-[10px] font-black uppercase bg-slate-200 text-slate-600 px-2 py-0.5 rounded flex-shrink-0">{trx.kategori}</span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 font-medium">
+                                                            {new Date(trx.tanggal).toLocaleDateString("id-ID", {day: 'numeric', month: 'short', year:'numeric'})} • 
+                                                            <span className="font-bold text-slate-700 ml-1">{trx.pengurus?.full_name}</span>
+                                                            {trx.divisions?.name && <span className="ml-1 text-sky-600 bg-sky-50 px-1 rounded">({trx.divisions.name})</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center justify-between sm:justify-end gap-4 sm:w-auto w-full">
+                                                    <p className={`font-black text-sm whitespace-nowrap ${trx.type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {trx.type === 'IN' ? '+' : '-'} Rp {trx.amount.toLocaleString('id-ID')}
+                                                    </p>
+                                                    {isBendahara && !isReadOnly && (
+                                                        <button onClick={() => deleteKeuangan(trx.id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors flex-shrink-0">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </motion.div>
                 )}
 
