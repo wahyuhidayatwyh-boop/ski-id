@@ -4,17 +4,22 @@ import nodemailer from "nodemailer";
 
 export async function GET(req: Request) {
     try {
-        // Cron Job logic: GET method biasanya dipakai Vercel Cron
-        // Cek Auth Header untuk proteksi (Opsional)
+        const url = new URL(req.url);
+        const isTestMode = url.searchParams.get("test") === "true";
+        const testEmail = url.searchParams.get("email"); // Override email target saat test
+
+        // Proteksi: hanya izinkan test mode tanpa auth di development, atau kalau ada CRON_SECRET
         const authHeader = req.headers.get("authorization");
-        if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}` && !isTestMode) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // 1. Ambil acara yang mendekati hari H
-        // H-7, H-3, H-1, H-0 (Hari H)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        if (isTestMode) {
+            console.log("🧪 TEST MODE: bypass date filter, akan kirim ke semua acara upcoming");
+        }
 
         const { data: acaras, error } = await supabase
             .from("acara_internal")
@@ -36,8 +41,11 @@ export async function GET(req: Request) {
             const diffTime = Math.abs(eventDate.getTime() - today.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Jika hari ini bertepatan dengan H-30, H-21, H-14, H-7, H-3, H-1, atau H-0
-            if ([30, 21, 14, 7, 3, 1, 0].includes(diffDays)) {
+            // Kalau test mode: bypass filter tanggal, gunakan H-7 sebagai dummy
+            const shouldSend = isTestMode || [30, 21, 14, 7, 3, 1, 0].includes(diffDays);
+            const effectiveDiffDays = isTestMode ? 7 : diffDays;
+
+            if (shouldSend) {
                 
                 // Ambil daftar email pengurus berdasarkan divisi acara
                 // Gunakan supabase admin client untuk akses auth.users
@@ -84,25 +92,25 @@ export async function GET(req: Request) {
                 let reminderType = "";
                 let actionRequired = "";
                 
-                if (diffDays === 30) {
+                if (effectiveDiffDays === 30) {
                     reminderType = "Kick-off Persiapan H-30 (1 Bulan)";
                     actionRequired = "Acara akan dilaksanakan 1 bulan lagi. Harap mulai menyusun rencana anggaran, pembagian tugas panitia, dan menghubungi pihak terkait/pembicara.";
-                } else if (diffDays === 21) {
+                } else if (effectiveDiffDays === 21) {
                     reminderType = "Progress Check H-21 (3 Minggu)";
                     actionRequired = "Acara tinggal 3 minggu! Pastikan proposal sudah disetujui, pembicara/pemateri sudah fix, dan publikasi awal (teaser) mulai disiapkan.";
-                } else if (diffDays === 14) {
+                } else if (effectiveDiffDays === 14) {
                     reminderType = "Persiapan Teknis H-14 (2 Minggu)";
                     actionRequired = "Acara tinggal 2 minggu! Segera pastikan perizinan tempat, fiksasi rundown acara, dan publikasi (poster utama) sudah mulai disebarkan.";
-                } else if (diffDays === 7) {
+                } else if (effectiveDiffDays === 7) {
                     reminderType = "Persiapan Final & Publikasi H-7 (1 Minggu)";
                     actionRequired = "Acara tinggal 1 minggu! Mengingatkan untuk memfinalisasi persiapan, gladi bersih (jika ada), dan mulai menggencarkan publikasi acara ke anggota.";
-                } else if (diffDays === 3) {
+                } else if (effectiveDiffDays === 3) {
                     reminderType = "Cek Kesiapan Logistik H-3";
                     actionRequired = "Mengingatkan seluruh divisi untuk memastikan seluruh logistik, materi, dan perlengkapan sudah siap 100%.";
-                } else if (diffDays === 1) {
+                } else if (effectiveDiffDays === 1) {
                     reminderType = "Reminder H-1 Acara";
                     actionRequired = "Besok acara dimulai! Pastikan semua persiapan sudah selesai dan ingatkan kembali peserta untuk hadir.";
-                } else if (diffDays === 0) {
+                } else if (effectiveDiffDays === 0) {
                     reminderType = "HARI H PELAKSANAAN";
                     actionRequired = "Hari ini adalah pelaksanaan acara. Semangat bertugas dan jangan lupa mengisi presensi kehadiran!";
                 }
@@ -110,7 +118,7 @@ export async function GET(req: Request) {
                 const emailBody = `
                     <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
                         <div style="background-color: #0ea5e9; padding: 20px; text-align: center;">
-                            <h2 style="color: #ffffff; margin: 0;">REMINDER ACARA H-${diffDays}</h2>
+                            <h2 style="color: #ffffff; margin: 0;">REMINDER ACARA H-${effectiveDiffDays}${isTestMode ? ' [TEST]' : ''}</h2>
                             <p style="color: #e0f2fe; font-size: 14px; margin: 5px 0 0 0;">Dakwah-OS Automated System</p>
                         </div>
                         <div style="padding: 30px; background-color: #ffffff;">
@@ -136,19 +144,19 @@ export async function GET(req: Request) {
                     },
                 });
 
-                // Namun secara logika, email di-query dari tabel auth.users
-                // Target emails variable is already set above
+                // Kalau test mode dan ada ?email param, override penerima ke email tersebut
+                const finalTargets = (isTestMode && testEmail) ? [testEmail] : targetEmails;
 
                 if (process.env.SMTP_PASSWORD) {
                     await transporter.sendMail({
                         from: `"Dakwah-OS Bot" <${process.env.SMTP_EMAIL}>`,
-                        to: targetEmails.join(","),
-                        subject: `[H-${diffDays}] Reminder Progres Acara: ${acara.title}`,
+                        to: finalTargets.join(","),
+                        subject: `[H-${effectiveDiffDays}${isTestMode ? ' TEST' : ''}] Reminder: ${acara.title}`,
                         html: emailBody
                     });
                     sentCount++;
                 } else {
-                    console.log(`Mock Cron Email Sent for ${acara.title} (H-${diffDays})`);
+                    console.log(`Mock Email → ${finalTargets.join(",")} | ${acara.title} (H-${effectiveDiffDays})`);
                     sentCount++;
                 }
             }
