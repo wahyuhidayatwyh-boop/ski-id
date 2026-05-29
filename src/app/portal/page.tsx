@@ -144,7 +144,23 @@ export default function DakwahOSPortal() {
 
             // Fetch Acara
             const { data: aData, error: aError } = await supabase.from("acara_internal").select("*").eq("kabinet_id", kabinet_id).order("start_time", { ascending: true });
-            if (aData) setAcaras(aData as any);
+            if (aData) {
+              const now = new Date();
+              const updatedAcara = aData.map((acara: any) => {
+                const start = new Date(acara.start_time);
+                const end = acara.end_time ? new Date(acara.end_time) : start;
+                let status = acara.status;
+                if (now >= end) {
+                  status = 'completed';
+                } else if (now >= start) {
+                  status = 'live';
+                } else {
+                  status = 'upcoming';
+                }
+                return { ...acara, status };
+              });
+              setAcaras(updatedAcara);
+            }
             if (aError) console.error("Acara Error:", aError);
 
             // Fetch Absensi for KPI & Detail
