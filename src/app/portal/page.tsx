@@ -427,7 +427,7 @@ export default function DakwahOSPortal() {
                 division_id: keuanganForm.division_id || null,
                 type: keuanganForm.type,
                 kategori: keuanganForm.kategori,
-                amount: parseFloat(keuanganForm.amount.replace(/[^0-9.-]+/g, "")),
+                amount: parseFloat(keuanganForm.amount.replace(/\D/g, '')),
                 description: keuanganForm.description,
                 tanggal: keuanganForm.tanggal,
                 created_by: pengurus!.id
@@ -1833,35 +1833,52 @@ export default function DakwahOSPortal() {
                             )}
                         </div>
 
-                        {/* Ringkasan Saldo Organisasi (Total) */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="w-10 h-10 bg-green-50 text-green-500 rounded-xl flex items-center justify-center"><ArrowDownRight size={20}/></div>
-                                    <h4 className="font-bold text-slate-500 text-sm">Total Pemasukan</h4>
-                                </div>
-                                <p className="text-2xl font-black text-slate-900">Rp {transaksiKeuangan.filter(t => t.type === 'IN').reduce((acc, val) => acc + val.amount, 0).toLocaleString('id-ID')}</p>
-                            </div>
-                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><ArrowUpRight size={20}/></div>
-                                    <h4 className="font-bold text-slate-500 text-sm">Total Pengeluaran</h4>
-                                </div>
-                                <p className="text-2xl font-black text-slate-900">Rp {transaksiKeuangan.filter(t => t.type === 'OUT').reduce((acc, val) => acc + val.amount, 0).toLocaleString('id-ID')}</p>
-                            </div>
-                            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm text-white relative overflow-hidden">
-                                <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4">
-                                    <Wallet size={120} />
-                                </div>
-                                <div className="relative z-10">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="w-10 h-10 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center"><DollarSign size={20}/></div>
-                                        <h4 className="font-bold text-sky-100 text-sm">Saldo Saat Ini</h4>
+                        {/* Ringkasan Saldo Organisasi */}
+                        {(() => {
+                            const saldoInfaq = transaksiKeuangan.filter(t => t.kategori === 'Donasi').reduce((s, t) => s + (t.type === 'IN' ? t.amount : -t.amount), 0);
+                            const saldoKas = transaksiKeuangan.filter(t => t.kategori === 'Kas Anggota').reduce((s, t) => s + (t.type === 'IN' ? t.amount : -t.amount), 0);
+                            const totalKeluar = transaksiKeuangan.filter(t => t.type === 'OUT').reduce((s, t) => s + t.amount, 0);
+                            const saldoTotal = transaksiKeuangan.reduce((s, t) => s + (t.type === 'IN' ? t.amount : -t.amount), 0);
+                            return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center"><ArrowDownRight size={20}/></div>
+                                            <h4 className="font-bold text-slate-500 text-sm">Saldo Infaq / Donasi</h4>
+                                        </div>
+                                        <p className="text-2xl font-black text-slate-900">Rp {saldoInfaq.toLocaleString('id-ID')}</p>
+                                        <p className="text-[11px] text-slate-400 mt-1">{transaksiKeuangan.filter(t => t.kategori === 'Donasi').length} transaksi</p>
                                     </div>
-                                    <p className="text-2xl font-black text-white">Rp {transaksiKeuangan.reduce((acc, val) => acc + (val.type === 'IN' ? val.amount : -val.amount), 0).toLocaleString('id-ID')}</p>
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"><Wallet size={20}/></div>
+                                            <h4 className="font-bold text-slate-500 text-sm">Saldo Uang Kas</h4>
+                                        </div>
+                                        <p className="text-2xl font-black text-slate-900">Rp {saldoKas.toLocaleString('id-ID')}</p>
+                                        <p className="text-[11px] text-slate-400 mt-1">{transaksiKeuangan.filter(t => t.kategori === 'Kas Anggota').length} transaksi</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><ArrowUpRight size={20}/></div>
+                                            <h4 className="font-bold text-slate-500 text-sm">Total Pengeluaran</h4>
+                                        </div>
+                                        <p className="text-2xl font-black text-slate-900">Rp {totalKeluar.toLocaleString('id-ID')}</p>
+                                        <p className="text-[11px] text-slate-400 mt-1">{transaksiKeuangan.filter(t => t.type === 'OUT').length} transaksi keluar</p>
+                                    </div>
+                                    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm text-white relative overflow-hidden">
+                                        <div className="absolute right-0 bottom-0 opacity-5 transform translate-x-4 translate-y-4"><Wallet size={120} /></div>
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-10 h-10 bg-sky-500/20 text-sky-400 rounded-xl flex items-center justify-center"><DollarSign size={20}/></div>
+                                                <h4 className="font-bold text-sky-100 text-sm">Saldo Total</h4>
+                                            </div>
+                                            <p className={`text-2xl font-black ${saldoTotal >= 0 ? 'text-white' : 'text-red-400'}`}>Rp {saldoTotal.toLocaleString('id-ID')}</p>
+                                            <p className="text-[11px] text-slate-500 mt-1">Seluruh sumber dana</p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
+                            );
+                        })()}
 
                         {/* Form Transaksi (Hanya Bendahara) */}
                         <AnimatePresence>
