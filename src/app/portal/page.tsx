@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
     LogOut, User, Calendar, CheckCircle, Clock, Plus, Briefcase, 
-    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon
+    Check, X, QrCode, ScanLine, Loader2, FileText, Upload, Award, Activity, AlertTriangle, Shield, CheckSquare, Download, Archive, ChevronLeft, ChevronRight, Users, FileCheck, Info, Camera, Phone, Mail, Edit, Trash2, Book, Database, Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5Qrcode } from "html5-qrcode";
@@ -67,6 +67,10 @@ export default function DakwahOSPortal() {
     const [kbFolderId, setKbFolderId] = useState<string | null>(null);
     const [showCreateFolderForm, setShowCreateFolderForm] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
+
+    // Calendar State
+    const [calendarMonth, setCalendarMonth] = useState(new Date());
+    const [selectedDateFilter, setSelectedDateFilter] = useState<string | null>(null);
 
     // Edit Division & Proker States
     const [isEditingDivision, setIsEditingDivision] = useState(false);
@@ -625,7 +629,7 @@ export default function DakwahOSPortal() {
                         <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-8 w-full max-w-4xl mx-auto">
     {[
         { id: "dashboard", icon: <User size={18} />, label: "Kondisi Saya" },
-        { id: "agenda", icon: <Calendar size={18} />, label: "Agenda & Rapat" },
+        { id: "agenda", icon: <Calendar size={18} />, label: "Timeline Proker" },
         { id: "divisi", icon: <Users size={18} />, label: "Dapur Divisi" },
         { id: "vault", icon: <FileText size={18} />, label: "Vault Approval" },
         { id: "arsip", icon: <Book size={18} />, label: "Knowledge Base" }
@@ -834,8 +838,8 @@ export default function DakwahOSPortal() {
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <div>
-                                <h2 className="text-2xl font-black text-slate-900">Agenda & Rapat SKI</h2>
-                                <p className="text-sm font-medium text-slate-500 mt-1">Pantau seluruh kegiatan organisasi dan rapat mendatang.</p>
+                                <h2 className="text-2xl font-black text-slate-900">Timeline Proker & Acara</h2>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Pantau seluruh timeline program kerja divisi dan kegiatan organisasi.</p>
                             </div>
                             {!isReadOnly && (
                                 <button onClick={() => { setShowAcaraForm(!showAcaraForm); setEditingAcaraId(null); setAcaraForm({ title: "", description: "", start_time: "", end_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" }); }} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
@@ -893,15 +897,104 @@ export default function DakwahOSPortal() {
                                 </motion.form>
                             )}
                         </AnimatePresence>
+
+                        {/* CALENDAR VIEW */}
+                        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 mb-8 overflow-x-auto">
+                            <div className="flex justify-between items-center mb-6 min-w-[500px]">
+                                <h3 className="text-xl font-black text-slate-900">
+                                    {calendarMonth.toLocaleDateString("id-ID", { month: "long", year: "numeric" })}
+                                </h3>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+                                        <ChevronRight size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-slate-400 min-w-[500px]">
+                                {['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map(d => <div key={d}>{d}</div>)}
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-2 min-w-[500px]">
+                                {(() => {
+                                    const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+                                    const firstDayOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
+                                    
+                                    const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+                                    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+                                    
+                                    return (
+                                        <>
+                                            {blanks.map(b => <div key={`blank-${b}`} className="h-24 bg-slate-50/50 rounded-xl"></div>)}
+                                            {days.map(day => {
+                                                const dateStr = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                                
+                                                // Find events on this day
+                                                const dayEvents = acaras.filter(a => {
+                                                    if (!a.start_time) return false;
+                                                    const d = new Date(a.start_time);
+                                                    return d.getFullYear() === calendarMonth.getFullYear() && d.getMonth() === calendarMonth.getMonth() && d.getDate() === day;
+                                                });
+                                                
+                                                const isToday = new Date().toDateString() === new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day).toDateString();
+                                                const isSelected = selectedDateFilter === dateStr;
+                                                
+                                                return (
+                                                    <div 
+                                                        key={day} 
+                                                        onClick={() => setSelectedDateFilter(isSelected ? null : dateStr)}
+                                                        className={`h-24 p-2 border rounded-xl flex flex-col cursor-pointer transition-all ${isSelected ? 'border-sky-500 ring-2 ring-sky-200 bg-sky-50' : isToday ? 'border-sky-300 bg-sky-50/50' : 'border-slate-100 hover:border-sky-300'}`}
+                                                    >
+                                                        <div className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-sky-500 text-white' : 'text-slate-600'}`}>
+                                                            {day}
+                                                        </div>
+                                                        <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-1">
+                                                            {dayEvents.map((evt, i) => (
+                                                                <div key={i} className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate ${evt.status === 'completed' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`} title={evt.title}>
+                                                                    {evt.title}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                            
+                            {selectedDateFilter && (
+                                <div className="mt-4 flex items-center justify-between bg-sky-50 text-sky-700 px-4 py-3 rounded-xl text-sm font-bold min-w-[500px]">
+                                    <span>Menampilkan acara pada: {new Date(selectedDateFilter).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                    <button onClick={() => setSelectedDateFilter(null)} className="hover:text-sky-900"><X size={16} /></button>
+                                </div>
+                            )}
+                        </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {acaras.length === 0 ? (
-                                <div className="col-span-full text-center py-12 bg-white rounded-3xl border border-dashed border-slate-300">
-                                    <Calendar className="mx-auto text-slate-300 mb-3" size={48} />
-                                    <p className="text-slate-500 font-bold">Belum ada agenda terdaftar saat ini.</p>
-                                </div>
-                            ) : (
-                                acaras.map(acara => {
+                            {(() => {
+                                const filteredAcaras = selectedDateFilter 
+                                    ? acaras.filter(a => {
+                                        if (!a.start_time) return false;
+                                        const d = new Date(a.start_time);
+                                        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                        return dateStr === selectedDateFilter;
+                                    })
+                                    : acaras;
+
+                                if (filteredAcaras.length === 0) {
+                                    return (
+                                        <div className="col-span-full text-center py-12 bg-white rounded-3xl border border-dashed border-slate-300">
+                                            <Calendar className="mx-auto text-slate-300 mb-3" size={48} />
+                                            <p className="text-slate-500 font-bold">Belum ada agenda terdaftar saat ini.</p>
+                                        </div>
+                                    );
+                                }
+                                
+                                return filteredAcaras.map(acara => {
                                     const isCompleted = acara.status === 'completed';
                                     const eventDate = new Date(acara.start_time);
                                     const isToday = eventDate.toDateString() === new Date().toDateString();
@@ -997,7 +1090,7 @@ export default function DakwahOSPortal() {
                                         </div>
                                     )
                                 })
-                            )}
+                            })()}
                         </div>
                     </motion.div>
                 )}

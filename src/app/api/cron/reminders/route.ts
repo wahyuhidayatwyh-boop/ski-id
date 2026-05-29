@@ -36,8 +36,8 @@ export async function GET(req: Request) {
             const diffTime = Math.abs(eventDate.getTime() - today.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Jika hari ini bertepatan dengan H-7, H-3, H-1, atau H-0
-            if ([7, 3, 1, 0].includes(diffDays)) {
+            // Jika hari ini bertepatan dengan H-30, H-21, H-14, H-7, H-3, H-1, atau H-0
+            if ([30, 21, 14, 7, 3, 1, 0].includes(diffDays)) {
                 
                 // Ambil daftar email pengurus di divisi yang bersangkutan
                 // Asumsi pengurus punya user_id yang merujuk ke tabel users
@@ -59,9 +59,18 @@ export async function GET(req: Request) {
                 let reminderType = "";
                 let actionRequired = "";
                 
-                if (diffDays === 7) {
-                    reminderType = "Persiapan Final & Publikasi H-7";
-                    actionRequired = "Acara tinggal 1 Minggu! Mengingatkan untuk memfinalisasi persiapan, gladi bersih (jika ada), dan mulai menggencarkan publikasi acara ke anggota.";
+                if (diffDays === 30) {
+                    reminderType = "Kick-off Persiapan H-30 (1 Bulan)";
+                    actionRequired = "Acara akan dilaksanakan 1 bulan lagi. Harap mulai menyusun rencana anggaran, pembagian tugas panitia, dan menghubungi pihak terkait/pembicara.";
+                } else if (diffDays === 21) {
+                    reminderType = "Progress Check H-21 (3 Minggu)";
+                    actionRequired = "Acara tinggal 3 minggu! Pastikan proposal sudah disetujui, pembicara/pemateri sudah fix, dan publikasi awal (teaser) mulai disiapkan.";
+                } else if (diffDays === 14) {
+                    reminderType = "Persiapan Teknis H-14 (2 Minggu)";
+                    actionRequired = "Acara tinggal 2 minggu! Segera pastikan perizinan tempat, fiksasi rundown acara, dan publikasi (poster utama) sudah mulai disebarkan.";
+                } else if (diffDays === 7) {
+                    reminderType = "Persiapan Final & Publikasi H-7 (1 Minggu)";
+                    actionRequired = "Acara tinggal 1 minggu! Mengingatkan untuk memfinalisasi persiapan, gladi bersih (jika ada), dan mulai menggencarkan publikasi acara ke anggota.";
                 } else if (diffDays === 3) {
                     reminderType = "Cek Kesiapan Logistik H-3";
                     actionRequired = "Mengingatkan seluruh divisi untuk memastikan seluruh logistik, materi, dan perlengkapan sudah siap 100%.";
