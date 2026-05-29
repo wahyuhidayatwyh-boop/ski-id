@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Html5Qrcode } from "html5-qrcode";
 import Image from "next/image";
+import { QRCodeSVG } from "qrcode.react";
 
 // Interfaces
 interface Pengurus { id: string; full_name: string; jabatan: string; role_level: string; photo_url: string; phone_number: string; division_id: string; kabinet_id: string; divisions: { id: string, name: string, description: string, icon: string, hero_image_url: string, vision: string, mission: string }; kabinets: { name: string, period: string } }
@@ -65,6 +66,7 @@ export default function DakwahOSPortal() {
     const [showAcaraForm, setShowAcaraForm] = useState(false);
     const [editingAcaraId, setEditingAcaraId] = useState<string | null>(null);
     const [acaraForm, setAcaraForm] = useState({ title: "", description: "", start_time: "", end_time: "", location: "", proker_id: "", status: "upcoming", attachment_url: "", meeting_link: "" });
+    const [selectedQR, setSelectedQR] = useState<string | null>(null);
 
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<string | null>(null);
@@ -429,7 +431,26 @@ export default function DakwahOSPortal() {
     const activeDivisionData = allDivisions.find(d => d.id === activeDivisiId);
 
     return (
-                        <div className="min-h-screen bg-slate-50 pb-20 font-sans overflow-x-hidden px-2 sm:px-4">
+        <div className="min-h-screen bg-slate-50 pb-20 font-sans overflow-x-hidden px-2 sm:px-4">
+            
+            {/* MODAL: TAMPILKAN QR */}
+            <AnimatePresence>
+                {selectedQR && (
+                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-8 text-center">
+                            <h3 className="font-bold text-xl text-slate-900 mb-2">QR Code Absensi</h3>
+                            <p className="text-slate-500 text-sm mb-6">Minta peserta untuk scan QR ini melalui Portal mereka</p>
+                            
+                            <div className="bg-slate-50 p-4 rounded-2xl flex justify-center mb-6">
+                                <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : ''}/portal?scan=${selectedQR}`} size={200} />
+                            </div>
+                            
+                            <button onClick={() => setSelectedQR(null)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-colors">Tutup</button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
             {/* Navbar / Header */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row justify-between items-center gap-3 sm:h-16 sm:py-0">
@@ -804,21 +825,40 @@ export default function DakwahOSPortal() {
                                                     </div>
                                                 </div>
                                                 
-                                                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${isCompleted ? 'bg-slate-100 text-slate-500' : 'bg-sky-50 text-sky-600'}`}>
-                                                        {isCompleted ? 'Selesai' : 'Akan Datang'}
-                                                    </span>
-                                                    
-                                                    {attendedEvents[acara.id] ? (
-                                                        <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">
-                                                            <CheckCircle size={12} /> {attendedEvents[acara.id].toUpperCase()}
+                                                <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${isCompleted ? 'bg-slate-100 text-slate-500' : 'bg-sky-50 text-sky-600'}`}>
+                                                            {isCompleted ? 'Selesai' : 'Akan Datang'}
                                                         </span>
-                                                    ) : isCompleted ? (
-                                                        <span className="text-xs font-bold text-red-400">Belum Absen</span>
-                                                    ) : (
-                                                        <button onClick={() => { setActiveTab('dashboard'); setScanning(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm">
-                                                            Absen Sekarang
-                                                        </button>
+                                                        
+                                                        {attendedEvents[acara.id] ? (
+                                                            <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">
+                                                                <CheckCircle size={12} /> {attendedEvents[acara.id].toUpperCase()}
+                                                            </span>
+                                                        ) : isCompleted ? (
+                                                            <span className="text-xs font-bold text-red-400">Belum Absen</span>
+                                                        ) : (
+                                                            <button onClick={() => { setActiveTab('dashboard'); setScanning(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm">
+                                                                Absen Sekarang
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {!isReadOnly && (
+                                                        <div className="flex gap-2 w-full mt-2">
+                                                            <button 
+                                                                onClick={() => setSelectedQR(acara.jwt_secret_token)}
+                                                                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-xl transition-colors"
+                                                            >
+                                                                Tampilkan QR
+                                                            </button>
+                                                            <a 
+                                                                href={`/portal/absensi/${acara.id}`}
+                                                                className="flex-1 bg-sky-50 text-sky-600 hover:bg-sky-100 border border-sky-100 text-xs font-bold py-2 rounded-xl transition-colors text-center"
+                                                            >
+                                                                Absen Manual
+                                                            </a>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
