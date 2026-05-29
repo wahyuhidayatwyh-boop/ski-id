@@ -119,7 +119,7 @@ export async function GET(req: Request) {
                     <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
                         <div style="background-color: #0ea5e9; padding: 20px; text-align: center;">
                             <h2 style="color: #ffffff; margin: 0;">REMINDER ACARA H-${effectiveDiffDays}${isTestMode ? ' [TEST]' : ''}</h2>
-                            <p style="color: #e0f2fe; font-size: 14px; margin: 5px 0 0 0;">Dakwah-OS Automated System</p>
+                            <p style="color: #e0f2fe; font-size: 14px; margin: 5px 0 0 0;">Sentral Kerohanian Islam Automated System</p>
                         </div>
                         <div style="padding: 30px; background-color: #ffffff;">
                             <h3 style="color: #0f172a; margin-top: 0;">${acara.title} ${acara.prokers ? `- ${acara.prokers.name}` : ''}</h3>
@@ -149,7 +149,7 @@ export async function GET(req: Request) {
 
                 if (process.env.SMTP_PASSWORD) {
                     await transporter.sendMail({
-                        from: `"Dakwah-OS Bot" <${process.env.SMTP_EMAIL}>`,
+                        from: `"Sentral Kerohanian Islam Bot" <${process.env.SMTP_EMAIL}>`,
                         to: finalTargets.join(","),
                         subject: `[H-${effectiveDiffDays}${isTestMode ? ' TEST' : ''}] Reminder: ${acara.title}`,
                         html: emailBody
