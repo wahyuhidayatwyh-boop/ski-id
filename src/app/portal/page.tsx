@@ -22,6 +22,13 @@ interface Document { id: string; title: string; type: string; file_url: string; 
 interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
 interface KnowledgeFolder { id: string; name: string; parent_id: string | null; kabinet_id: string; division_id: string | null; created_by: string; created_at: string; }
 interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; division_id?: string; folder_id?: string; file_size?: number; file_type?: string; kabinet_id?: string; pengurus?: { full_name: string }; divisions?: { name: string } }
+const getLocalDatetimeLocal = (dateString: string | undefined) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().slice(0, 16);
+};
 
 export default function DakwahOSPortal() {
     const router = useRouter();
@@ -862,11 +869,11 @@ export default function DakwahOSPortal() {
                                     <div className="grid sm:grid-cols-2 gap-4 mb-4">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 mb-1">Waktu Mulai</label>
-                                            <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.start_time ? new Date(acaraForm.start_time).toISOString().slice(0,16) : ""} onChange={e => setAcaraForm({...acaraForm, start_time: new Date(e.target.value).toISOString()})} />
+                                            <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={getLocalDatetimeLocal(acaraForm.start_time)} onChange={e => setAcaraForm({...acaraForm, start_time: new Date(e.target.value).toISOString()})} />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 mb-1">Waktu Selesai</label>
-                                            <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={acaraForm.end_time ? new Date(acaraForm.end_time).toISOString().slice(0,16) : ""} onChange={e => setAcaraForm({...acaraForm, end_time: new Date(e.target.value).toISOString()})} />
+                                            <input required type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium" value={getLocalDatetimeLocal(acaraForm.end_time)} onChange={e => setAcaraForm({...acaraForm, end_time: new Date(e.target.value).toISOString()})} />
                                         </div>
                                     </div>
                                     <div className="mb-4">
