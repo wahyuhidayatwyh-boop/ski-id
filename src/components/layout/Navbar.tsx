@@ -15,6 +15,7 @@ export default function Navbar() {
     { name: "Acara", href: "/acara" },
     { name: "Dokumentasi", href: "/dokumentasi" },
     { name: "Katalog Produk", href: "/katalog" },
+    { name: "Transparansi Keuangan", href: "/keuangan" },
   ];
 
   return (
