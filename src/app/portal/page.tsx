@@ -1374,7 +1374,7 @@ export default function DakwahOSPortal() {
                             {['arsip_lpj', 'aset_desain', 'kurikulum', 'database_eksternal'].map(folder => {
                                 const folderFiles = knowledgeFiles.filter(f => f.folder === folder);
                                 const folderLabels: any = { arsip_lpj: 'Arsip Dokumen', aset_desain: 'Aset Desain', kurikulum: 'Kurikulum', database_eksternal: 'Database Umum' };
-                                const folderIcons: any = { arsip_lpj: <FileText size={20} className="text-rose-500"/>, aset_desain: <Image size={20} className="text-purple-500"/>, kurikulum: <Book size={20} className="text-emerald-500"/>, database_eksternal: <Database size={20} className="text-amber-500"/> };
+                                const folderIcons: any = { arsip_lpj: <FileText size={20} className="text-rose-500"/>, aset_desain: <ImageIcon size={20} className="text-purple-500"/>, kurikulum: <Book size={20} className="text-emerald-500"/>, database_eksternal: <Database size={20} className="text-amber-500"/> };
                                 
                                 return (
                                     <div key={folder} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:border-sky-300 transition-colors">

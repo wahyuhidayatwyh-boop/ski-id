@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-    Briefcase, Edit, Plus, Trash2, X, ChevronLeft, Target as TargetIcon, Flag as FlagIcon, Users, Loader2
+    Briefcase, Edit, Plus, Trash2, X, ChevronLeft, Target as TargetIcon, Flag as FlagIcon, Users, Loader2, Calendar
 } from "lucide-react";
 
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
@@ -23,7 +23,7 @@ export default function AdminDapurDivisi() {
 
     // View States
     const [activeDivisiId, setActiveDivisiId] = useState<string | null>(null);
-    const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker">("profil");
+    const [divisiSubTab, setDivisiSubTab] = useState<"profil" | "proker" | "acara">("profil");
     
     // Data States
     const [allDivisions, setAllDivisions] = useState<DivisionData[]>([]);
