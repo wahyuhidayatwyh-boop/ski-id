@@ -94,25 +94,25 @@ export async function GET(req: Request) {
 
                 if (effectiveDiffDays === 30) {
                     reminderType = "Kick-off Persiapan H-30 (1 Bulan)";
-                    actionRequired = "Acara akan dilaksanakan 1 bulan lagi. Harap mulai menyusun rencana anggaran, pembagian tugas panitia, dan menghubungi pihak terkait/pembicara.";
+                    actionRequired = "Agenda akan dilaksanakan 1 bulan lagi. Harap mulai menyusun perencanaan awal, koordinasi tim, dan mencatat poin-poin penting yang dibutuhkan.";
                 } else if (effectiveDiffDays === 21) {
                     reminderType = "Progress Check H-21 (3 Minggu)";
-                    actionRequired = "Acara tinggal 3 minggu! Pastikan proposal sudah disetujui, pembicara/pemateri sudah fix, dan publikasi awal (teaser) mulai disiapkan.";
+                    actionRequired = "Agenda tinggal 3 minggu! Pastikan konsep dasar sudah matang dan koordinasi antar pihak terkait berjalan lancar.";
                 } else if (effectiveDiffDays === 14) {
                     reminderType = "Persiapan Teknis H-14 (2 Minggu)";
-                    actionRequired = "Acara tinggal 2 minggu! Segera pastikan perizinan tempat, fiksasi rundown acara, dan publikasi (poster utama) sudah mulai disebarkan.";
+                    actionRequired = "Agenda tinggal 2 minggu! Segera fiksasi linimasa (rundown), perizinan tempat/ruangan (jika offline) atau link pertemuan (jika online).";
                 } else if (effectiveDiffDays === 7) {
-                    reminderType = "Persiapan Final & Publikasi H-7 (1 Minggu)";
-                    actionRequired = "Acara tinggal 1 minggu! Mengingatkan untuk memfinalisasi persiapan, gladi bersih (jika ada), dan mulai menggencarkan publikasi acara ke anggota.";
+                    reminderType = "Koordinasi Matang H-7 (1 Minggu)";
+                    actionRequired = "Agenda tinggal 1 minggu! Harap lakukan pengecekan progres persiapan, materi pembahasan, dan ingatkan kembali seluruh anggota tim.";
                 } else if (effectiveDiffDays === 3) {
-                    reminderType = "Cek Kesiapan Logistik H-3";
-                    actionRequired = "Mengingatkan seluruh divisi untuk memastikan seluruh logistik, materi, dan perlengkapan sudah siap 100%.";
+                    reminderType = "Cek Kesiapan Akhir H-3";
+                    actionRequired = "Mengingatkan untuk memastikan seluruh perlengkapan, materi, berkas, atau logistik pendukung sudah siap menjelang hari H.";
                 } else if (effectiveDiffDays === 1) {
-                    reminderType = "Reminder H-1 Acara";
-                    actionRequired = "Besok acara dimulai! Pastikan semua persiapan sudah selesai dan ingatkan kembali peserta untuk hadir.";
+                    reminderType = "Reminder H-1 Agenda";
+                    actionRequired = "Besok agenda dimulai! Pastikan semua persiapan teknis sudah selesai dan ingatkan kembali seluruh peserta/anggota untuk hadir.";
                 } else if (effectiveDiffDays === 0) {
                     reminderType = "HARI H PELAKSANAAN";
-                    actionRequired = "Hari ini adalah pelaksanaan acara. Semangat bertugas dan jangan lupa mengisi presensi kehadiran!";
+                    actionRequired = "Hari ini agenda dilaksanakan. Semangat bertugas/mengikuti jalannya kegiatan dan jangan lupa mengisi presensi kehadiran!";
                 }
 
                 const emailBody = `
