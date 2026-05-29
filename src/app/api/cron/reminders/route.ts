@@ -34,10 +34,10 @@ export async function GET(req: Request) {
 
         for (const acara of acaras) {
             if (!acara.start_time) continue;
-            
+
             const eventDate = new Date(acara.start_time);
             eventDate.setHours(0, 0, 0, 0);
-            
+
             const diffTime = Math.abs(eventDate.getTime() - today.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
             const effectiveDiffDays = isTestMode ? 7 : diffDays;
 
             if (shouldSend) {
-                
+
                 // Ambil daftar email pengurus berdasarkan divisi acara
                 // Gunakan supabase admin client untuk akses auth.users
                 const { createClient } = await import("@supabase/supabase-js");
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
                     .from("pengurus")
                     .select("user_id")
                     .eq("kabinet_id", acara.kabinet_id);
-                
+
                 if (divisionId) {
                     pengurusQuery.eq("division_id", divisionId);
                 }
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
                 // Tentukan isi pesan berdasarkan H- berapa
                 let reminderType = "";
                 let actionRequired = "";
-                
+
                 if (effectiveDiffDays === 30) {
                     reminderType = "Kick-off Persiapan H-30 (1 Bulan)";
                     actionRequired = "Acara akan dilaksanakan 1 bulan lagi. Harap mulai menyusun rencana anggaran, pembagian tugas panitia, dan menghubungi pihak terkait/pembicara.";
@@ -130,7 +130,7 @@ export async function GET(req: Request) {
                                 <h4 style="color: #0ea5e9; margin: 0 0 5px 0;">Fokus Agenda: ${reminderType}</h4>
                                 <p style="color: #475569; font-size: 14px; margin: 0;">${actionRequired}</p>
                             </div>
-                            <p style="color: #334155; font-size: 14px; margin-top: 20px;">Harap seluruh panitia/staff divisi segera berkoordinasi. Silakan masuk ke <a href="https://ski-telkom.ac.id/portal" style="color: #0ea5e9;">Portal Pengurus</a> untuk update progres tugas.</p>
+                            <p style="color: #334155; font-size: 14px; margin-top: 20px;">Harap seluruh panitia/staff divisi segera berkoordinasi. Silakan masuk ke <a href="https://www.skitelkompurwokerto.site/portal" style="color: #0ea5e9;">Portal Pengurus</a> untuk update progres tugas.</p>
                         </div>
                     </div>
                 `;
