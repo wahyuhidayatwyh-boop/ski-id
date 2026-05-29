@@ -39,20 +39,45 @@ export async function GET(req: Request) {
             // Jika hari ini bertepatan dengan H-30, H-21, H-14, H-7, H-3, H-1, atau H-0
             if ([30, 21, 14, 7, 3, 1, 0].includes(diffDays)) {
                 
-                // Ambil daftar email pengurus di divisi yang bersangkutan
-                // Asumsi pengurus punya user_id yang merujuk ke tabel users
-                // Kita gunakan RCP atau join manual jika perlu. 
-                // Untuk contoh ini kita get pengurus by division_id
-                let targetEmails = ["anggota@ski-telkom.ac.id", "pengurus@ski-telkom.ac.id"]; // Mock target
+                // Ambil daftar email pengurus berdasarkan divisi acara
+                // Gunakan supabase admin client untuk akses auth.users
+                const { createClient } = await import("@supabase/supabase-js");
+                const adminClient = createClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                    { auth: { autoRefreshToken: false, persistSession: false } }
+                );
+
+                let targetEmails: string[] = [];
+
+                // Cari pengurus yang terlibat: divisi terkait + seluruh pengurus jika acara umum
+                const divisionId = acara.prokers?.division_id || null;
+                const pengurusQuery = supabase
+                    .from("pengurus")
+                    .select("user_id")
+                    .eq("kabinet_id", acara.kabinet_id);
                 
-                if (acara.prokers?.division_id) {
-                    const { data: staffList } = await supabase
-                        .from("pengurus")
-                        .select("full_name, role_level, user_id")
-                        .eq("division_id", acara.prokers.division_id)
-                        .eq("kabinet_id", acara.kabinet_id);
-    
-                    if (!staffList || staffList.length === 0) continue;
+                if (divisionId) {
+                    pengurusQuery.eq("division_id", divisionId);
+                }
+
+                const { data: staffList } = await pengurusQuery;
+
+                if (staffList && staffList.length > 0) {
+                    const userIds = staffList.map(s => s.user_id).filter(Boolean);
+                    // Ambil email dari auth.users via admin API
+                    const emailPromises = userIds.map(async (uid) => {
+                        const { data } = await adminClient.auth.admin.getUserById(uid);
+                        return data?.user?.email || null;
+                    });
+                    const emails = await Promise.all(emailPromises);
+                    targetEmails = emails.filter((e): e is string => !!e);
+                }
+
+                // Fallback: kalau tidak ada email ditemukan, skip
+                if (targetEmails.length === 0) {
+                    console.log(`No emails found for acara: ${acara.title}`);
+                    continue;
                 }
 
                 // Tentukan isi pesan berdasarkan H- berapa
