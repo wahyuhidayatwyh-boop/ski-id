@@ -20,7 +20,7 @@ interface Task { id: string; proker_id: string; title: string; description: stri
 interface Kabinet { id: string; name: string; period: string; is_active: boolean; }
 interface Document { id: string; title: string; type: string; file_url: string; status: string; uploaded_by: string; created_at: string; catatan_revisi?: string; pengurus?: { full_name: string } }
 interface DivisionData { id: string; name: string; description: string; icon: string; hero_image_url: string; vision: string; mission: string; coordinator?: { photo_url: string, full_name: string, jabatan: string }; staffs: { photo_url: string, full_name: string, jabatan: string }[] }
-interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; pengurus?: { full_name: string } }
+interface KnowledgeBase { id: string; title: string; folder: string; file_url: string; uploaded_by: string; created_at: string; division_id?: string; file_size?: number; file_type?: string; kabinet_id?: string; pengurus?: { full_name: string }; divisions?: { name: string } }
 
 export default function DakwahOSPortal() {
     const router = useRouter();
@@ -57,8 +57,11 @@ export default function DakwahOSPortal() {
     const [newTask, setNewTask] = useState({ proker_id: "", title: "", description: "", assigned_to: "" });
     const [showDocForm, setShowDocForm] = useState(false);
     const [docUpload, setDocUpload] = useState({ title: "", type: "proposal", file_url: "" });
+    const [docFile, setDocFile] = useState<File | null>(null);
     const [showKnowledgeForm, setShowKnowledgeForm] = useState(false);
-    const [knowledgeForm, setKnowledgeForm] = useState({ title: '', folder: 'arsip_lpj', file_url: '' });
+    const [knowledgeForm, setKnowledgeForm] = useState({ title: '', folder: '' });
+    const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
+    const [activeKBFolder, setActiveKBFolder] = useState<string | null>(null);
 
     // Edit Division & Proker States
     const [isEditingDivision, setIsEditingDivision] = useState(false);
@@ -224,8 +227,12 @@ export default function DakwahOSPortal() {
             }
 
             // Documents Vault
-            const { data: docData } = await supabase.from("documents").select("*, pengurus(full_name)").eq("kabinet_id", kabinet_id).order("created_at", { ascending: false });
+            const { data: docData } = await supabase.from("documents").select("*, pengurus:uploaded_by(full_name)").eq("kabinet_id", kabinet_id).order("created_at", { ascending: false });
             if (docData) setDocuments(docData as any);
+
+            // Knowledge Base Files
+            const { data: kbData } = await supabase.from("knowledge_base").select("*, pengurus:uploaded_by(full_name), divisions:division_id(name)").order("created_at", { ascending: false });
+            if (kbData) setKnowledgeFiles(kbData as any);
 
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
@@ -316,33 +323,60 @@ export default function DakwahOSPortal() {
 
     const submitDocument = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!docUpload.title || !docUpload.file_url || isReadOnly) return;
-        await supabase.from("documents").insert([{ 
-            kabinet_id: selectedKabinetId, 
-            division_id: pengurus!.division_id, 
-            title: docUpload.title, 
-            type: docUpload.type, 
-            file_url: docUpload.file_url, 
-            uploaded_by: pengurus!.id,
-            status: 'cek_bendahara'
-        }]);
-        setShowDocForm(false);
-        setDocUpload({ title: "", type: "proposal", file_url: "" });
-        fetchDashboardData(selectedKabinetId);
+        if (!docUpload.title || !docFile || isReadOnly) return;
+        try {
+            const url = await uploadFileToSupabase(docFile);
+            await supabase.from("documents").insert([{ 
+                kabinet_id: selectedKabinetId, 
+                division_id: pengurus!.division_id, 
+                title: docUpload.title, 
+                type: docUpload.type, 
+                file_url: url, 
+                uploaded_by: pengurus!.id,
+                status: 'cek_bendahara'
+            }]);
+            setShowDocForm(false);
+            setDocUpload({ title: "", type: "proposal", file_url: "" });
+            setDocFile(null);
+            fetchDashboardData(selectedKabinetId);
+        } catch (err) { console.error(err); }
     };
 
     const submitKnowledge = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!knowledgeForm.title || !knowledgeForm.file_url || isReadOnly) return;
-        await supabase.from("knowledge_base").insert([{ 
-            title: knowledgeForm.title, 
-            folder: knowledgeForm.folder, 
-            file_url: knowledgeForm.file_url, 
-            uploaded_by: pengurus!.id 
-        }]);
-        setShowKnowledgeForm(false);
-        setKnowledgeForm({ title: '', folder: 'arsip_lpj', file_url: '' });
+        if (!knowledgeForm.title || !knowledgeFile || isReadOnly) return;
+        try {
+            const url = await uploadFileToSupabase(knowledgeFile);
+            const folderTarget = knowledgeForm.folder || pengurus!.division_id;
+            await supabase.from("knowledge_base").insert([{ 
+                title: knowledgeForm.title, 
+                folder: folderTarget, 
+                file_url: url, 
+                uploaded_by: pengurus!.id,
+                division_id: pengurus!.division_id,
+                kabinet_id: selectedKabinetId,
+                file_size: knowledgeFile.size,
+                file_type: knowledgeFile.type
+            }]);
+            setShowKnowledgeForm(false);
+            setKnowledgeForm({ title: '', folder: '' });
+            setKnowledgeFile(null);
+            fetchDashboardData(selectedKabinetId);
+        } catch (err) { console.error(err); }
+    };
+
+    const deleteKnowledgeFile = async (id: string) => {
+        if (isReadOnly) return;
+        if (!confirm('Hapus file ini?')) return;
+        await supabase.from('knowledge_base').delete().eq('id', id);
         fetchDashboardData(selectedKabinetId);
+    };
+
+    const formatFileSize = (bytes?: number) => {
+        if (!bytes) return '-';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
     };
 
     const handleDocumentAction = async (docId: string, action: 'acc_bendahara' | 'revisi_bendahara' | 'acc_sekretaris' | 'revisi_sekretaris') => {
@@ -1255,8 +1289,28 @@ export default function DakwahOSPortal() {
                                             <option value="lpj">Lembar Pertanggungjawaban (LPJ)</option>
                                         </select>
                                     </div>
-                                    <input required type="text" placeholder="URL File (Gunakan Google Drive Link)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500" value={docUpload.file_url} onChange={e => setDocUpload({...docUpload, file_url: e.target.value})} />
-                                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">Submit ke Sistem Approval</button>
+                                    <div className="mb-4">
+                                        <label className="block text-xs font-bold text-slate-500 mb-2">Upload File Dokumen (PDF/Word/Excel)</label>
+                                        <div className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${docFile ? 'border-green-300 bg-green-50' : 'border-slate-200 bg-slate-50 hover:border-sky-300'}`}>
+                                            <input required type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => { if (e.target.files?.[0]) setDocFile(e.target.files[0]); }} />
+                                            {docFile ? (
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <CheckCircle size={18} className="text-green-500" />
+                                                    <span className="text-sm font-bold text-green-700">{docFile.name}</span>
+                                                    <span className="text-xs text-green-500">({(docFile.size / 1048576).toFixed(1)} MB)</span>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <Upload size={24} className="mx-auto text-slate-400 mb-2" />
+                                                    <p className="text-sm font-bold text-slate-500">Klik atau drag file ke sini</p>
+                                                    <p className="text-xs text-slate-400 mt-1">PDF, Word, Excel, PowerPoint • Maks 50MB</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button disabled={isUploading} type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors disabled:bg-slate-400">
+                                        {isUploading ? 'Mengunggah...' : 'Submit ke Sistem Approval'}
+                                    </button>
                                 </motion.form>
                             )}
                         </AnimatePresence>
@@ -1336,133 +1390,172 @@ export default function DakwahOSPortal() {
                     </motion.div>
                 )}
 
-                {/* VIEW 4: KNOWLEDGE MANAGEMENT (ARSIP TERSTRUKTUR) */}
+                {/* VIEW 4: PENYIMPANAN FILE (Google Drive Style) */}
                 {activeTab === "arsip" && !activeDivisiId && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                        {/* Header */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                            <div>
-                                <h3 className="font-black text-xl text-slate-900">Knowledge Management</h3>
-                                <p className="text-sm font-medium text-slate-500">Arsip terstruktur untuk panduan, kurikulum, dan aset organisasi.</p>
+                            <div className="flex items-center gap-3">
+                                {activeKBFolder && (
+                                    <button onClick={() => setActiveKBFolder(null)} className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center transition-colors">
+                                        <ChevronLeft size={20} className="text-slate-600"/>
+                                    </button>
+                                )}
+                                <div>
+                                    <h3 className="font-black text-xl text-slate-900 flex items-center gap-2">
+                                        <Database size={20} className="text-sky-500" />
+                                        {activeKBFolder ? (allDivisions.find(d => d.id === activeKBFolder)?.name || 'Umum') : 'Penyimpanan File'}
+                                    </h3>
+                                    <p className="text-sm font-medium text-slate-500">
+                                        {activeKBFolder ? 'File-file yang diunggah dalam folder divisi ini' : 'Pilih folder divisi untuk melihat atau mengunggah file.'}
+                                    </p>
+                                </div>
                             </div>
-                            {/* Hanya POH yang bisa unggah file baru (ketuum, wakil, sekretaris, bendahara) */}
-                            {["ketuum", "wakil", "sekretaris1", "sekretaris2", "bendahara1", "bendahara2"].includes(pengurus.role_level) && !isReadOnly && (
+                            {activeKBFolder && !isReadOnly && (
                                 <button onClick={() => setShowKnowledgeForm(!showKnowledgeForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
-                                    <Upload size={16} /> Tambah Arsip
+                                    <Upload size={16} /> Unggah File
                                 </button>
                             )}
                         </div>
 
+                        {/* Upload Form */}
                         <AnimatePresence>
-                            {showKnowledgeForm && !isReadOnly && (
+                            {showKnowledgeForm && activeKBFolder && !isReadOnly && (
                                 <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitKnowledge} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
-                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                                        <input required type="text" placeholder="Judul Arsip (Misal: Guideline Desain)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value})} />
-                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.folder} onChange={e => setKnowledgeForm({...knowledgeForm, folder: e.target.value})}>
-                                            <option value="arsip_lpj">Arsip LPJ / Proposal Lama</option>
-                                            <option value="aset_desain">Aset Desain & Logo</option>
-                                            <option value="kurikulum">Kurikulum Kaderisasi</option>
-                                            <option value="database_eksternal">Database Eksternal & Surat</option>
-                                        </select>
+                                    <h4 className="font-black text-slate-900 mb-4">Unggah File Baru</h4>
+                                    <input required type="text" placeholder="Nama File (Misal: Guideline Desain Poster)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500 mb-4" value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value})} />
+                                    <div className="mb-4">
+                                        <div className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors ${knowledgeFile ? 'border-green-300 bg-green-50' : 'border-slate-200 bg-slate-50 hover:border-sky-300'}`}>
+                                            <input required type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => { if (e.target.files?.[0]) setKnowledgeFile(e.target.files[0]); }} />
+                                            {knowledgeFile ? (
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <CheckCircle size={24} className="text-green-500" />
+                                                    <div className="text-left">
+                                                        <p className="text-sm font-bold text-green-700">{knowledgeFile.name}</p>
+                                                        <p className="text-xs text-green-500">{formatFileSize(knowledgeFile.size)}</p>
+                                                    </div>
+                                                    <button type="button" onClick={(e) => { e.stopPropagation(); setKnowledgeFile(null); }} className="ml-2 text-red-400 hover:text-red-600"><X size={18}/></button>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <Upload size={32} className="mx-auto text-slate-400 mb-3" />
+                                                    <p className="text-sm font-bold text-slate-500">Klik atau drag file ke area ini</p>
+                                                    <p className="text-xs text-slate-400 mt-1">Semua format diterima • Maks 50MB</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <input required type="text" placeholder="URL File (Gunakan Google Drive Link atau Upload langsung di Supabase Storage)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.file_url} onChange={e => setKnowledgeForm({...knowledgeForm, file_url: e.target.value})} />
-                                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">Simpan Arsip</button>
+                                    <button disabled={isUploading || !knowledgeFile} type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors disabled:bg-slate-400 w-full sm:w-auto">
+                                        {isUploading ? 'Mengunggah...' : 'Simpan ke Folder'}
+                                    </button>
                                 </motion.form>
                             )}
                         </AnimatePresence>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {['arsip_lpj', 'aset_desain', 'kurikulum', 'database_eksternal'].map(folder => {
-                                const folderFiles = knowledgeFiles.filter(f => f.folder === folder);
-                                const folderLabels: any = { arsip_lpj: 'Arsip Dokumen', aset_desain: 'Aset Desain', kurikulum: 'Kurikulum', database_eksternal: 'Database Umum' };
-                                const folderIcons: any = { arsip_lpj: <FileText size={20} className="text-rose-500"/>, aset_desain: <ImageIcon size={20} className="text-purple-500"/>, kurikulum: <Book size={20} className="text-emerald-500"/>, database_eksternal: <Database size={20} className="text-amber-500"/> };
-                                
-                                return (
-                                    <div key={folder} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:border-sky-300 transition-colors">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">{folderIcons[folder]}</div>
-                                            <h4 className="font-black text-slate-900">{folderLabels[folder]}</h4>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {folderFiles.length === 0 && <p className="text-xs text-slate-400 font-bold">Folder kosong.</p>}
-                                            {folderFiles.map(file => (
-                                                <a key={file.id} href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-sky-50 transition-colors group">
-                                                    <div className="flex-1 min-w-0 pr-4">
-                                                        <p className="text-sm font-bold text-slate-700 truncate group-hover:text-sky-700">{file.title}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold">Oleh: {file.pengurus?.full_name}</p>
-                                                    </div>
-                                                    <Download size={14} className="text-slate-400 group-hover:text-sky-500 flex-shrink-0" />
-                                                </a>
-                                            ))}
-                                        </div>
+                        {/* Folder Grid (when no folder is active) */}
+                        {!activeKBFolder && (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {allDivisions.map(div => {
+                                    const fileCount = knowledgeFiles.filter(f => f.folder === div.id || f.division_id === div.id).length;
+                                    return (
+                                        <button key={div.id} onClick={() => { setActiveKBFolder(div.id); setShowKnowledgeForm(false); }} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition-all text-left group">
+                                            <div className="w-14 h-12 bg-sky-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-sky-100 transition-colors">
+                                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-sky-500">
+                                                    <path d="M2 7V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7H11L9 5H4C2.9 5 2 5.9 2 7Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            </div>
+                                            <h4 className="font-black text-slate-900 text-sm truncate">{div.name}</h4>
+                                            <p className="text-xs text-slate-400 font-bold mt-1">{fileCount} file</p>
+                                        </button>
+                                    );
+                                })}
+                                {/* Folder Umum */}
+                                <button onClick={() => { setActiveKBFolder('umum'); setShowKnowledgeForm(false); }} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:border-amber-300 hover:shadow-md transition-all text-left group">
+                                    <div className="w-14 h-12 bg-amber-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-amber-100 transition-colors">
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-amber-500">
+                                            <path d="M2 7V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7H11L9 5H4C2.9 5 2 5.9 2 7Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
                                     </div>
-                                )
-                            })}
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* VIEW 4: KNOWLEDGE MANAGEMENT (ARSIP TERSTRUKTUR) */}
-                {activeTab === "arsip" && !activeDivisiId && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                            <div>
-                                <h3 className="font-black text-xl text-slate-900">Knowledge Management</h3>
-                                <p className="text-sm font-medium text-slate-500">Arsip terstruktur untuk panduan, kurikulum, dan aset organisasi.</p>
-                            </div>
-                            {/* Hanya POH yang bisa unggah file baru (ketuum, wakil, sekretaris, bendahara) */}
-                            {["ketuum", "wakil", "sekretaris1", "sekretaris2", "bendahara1", "bendahara2"].includes(pengurus.role_level) && !isReadOnly && (
-                                <button onClick={() => setShowKnowledgeForm(!showKnowledgeForm)} className="bg-sky-500 text-white px-5 py-2.5 rounded-xl font-black text-sm shadow-md shadow-sky-500/20 hover:bg-sky-600 flex items-center gap-2 transition-colors">
-                                    <Upload size={16} /> Tambah Arsip
+                                    <h4 className="font-black text-slate-900 text-sm">Folder Umum</h4>
+                                    <p className="text-xs text-slate-400 font-bold mt-1">{knowledgeFiles.filter(f => f.folder === 'umum' || (!allDivisions.some(d => d.id === f.folder) && f.folder !== 'umum' && !allDivisions.some(d => d.id === f.division_id))).length} file</p>
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
-                        <AnimatePresence>
-                            {showKnowledgeForm && !isReadOnly && (
-                                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} onSubmit={submitKnowledge} className="bg-white p-6 rounded-3xl border border-sky-200 shadow-lg overflow-hidden">
-                                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                                        <input required type="text" placeholder="Judul Arsip (Misal: Guideline Desain)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value})} />
-                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.folder} onChange={e => setKnowledgeForm({...knowledgeForm, folder: e.target.value})}>
-                                            <option value="arsip_lpj">Arsip LPJ / Proposal Lama</option>
-                                            <option value="aset_desain">Aset Desain & Logo</option>
-                                            <option value="kurikulum">Kurikulum Kaderisasi</option>
-                                            <option value="database_eksternal">Database Eksternal & Surat</option>
-                                        </select>
-                                    </div>
-                                    <input required type="text" placeholder="URL File (Gunakan Google Drive Link atau Upload langsung di Supabase Storage)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500" value={knowledgeForm.file_url} onChange={e => setKnowledgeForm({...knowledgeForm, file_url: e.target.value})} />
-                                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-3 rounded-xl text-sm transition-colors">Simpan Arsip</button>
-                                </motion.form>
-                            )}
-                        </AnimatePresence>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {['arsip_lpj', 'aset_desain', 'kurikulum', 'database_eksternal'].map(folder => {
-                                const folderFiles = knowledgeFiles.filter(f => f.folder === folder);
-                                const folderLabels: any = { arsip_lpj: 'Arsip Dokumen', aset_desain: 'Aset Desain', kurikulum: 'Kurikulum', database_eksternal: 'Database Umum' };
-                                const folderIcons: any = { arsip_lpj: <FileText size={20} className="text-rose-500"/>, aset_desain: <ImageIcon size={20} className="text-purple-500"/>, kurikulum: <Book size={20} className="text-emerald-500"/>, database_eksternal: <Database size={20} className="text-amber-500"/> };
-                                
-                                return (
-                                    <div key={folder} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:border-sky-300 transition-colors">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">{folderIcons[folder]}</div>
-                                            <h4 className="font-black text-slate-900">{folderLabels[folder]}</h4>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {folderFiles.length === 0 && <p className="text-xs text-slate-400 font-bold">Folder kosong.</p>}
-                                            {folderFiles.map(file => (
-                                                <a key={file.id} href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-sky-50 transition-colors group">
-                                                    <div className="flex-1 min-w-0 pr-4">
-                                                        <p className="text-sm font-bold text-slate-700 truncate group-hover:text-sky-700">{file.title}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold">Oleh: {file.pengurus?.full_name}</p>
-                                                    </div>
-                                                    <Download size={14} className="text-slate-400 group-hover:text-sky-500 flex-shrink-0" />
-                                                </a>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
+                        {/* File List (when inside a folder) */}
+                        {activeKBFolder && (
+                            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-slate-50 border-b border-slate-100">
+                                            <tr>
+                                                <th className="py-3 px-6 font-bold text-slate-500">Nama File</th>
+                                                <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Diunggah Oleh</th>
+                                                <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Ukuran</th>
+                                                <th className="py-3 px-6 font-bold text-slate-500 hidden sm:table-cell">Tanggal</th>
+                                                <th className="py-3 px-6 font-bold text-slate-500 text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {(() => {
+                                                const folderFiles = activeKBFolder === 'umum'
+                                                    ? knowledgeFiles.filter(f => f.folder === 'umum' || (!allDivisions.some(d => d.id === f.folder) && !allDivisions.some(d => d.id === f.division_id)))
+                                                    : knowledgeFiles.filter(f => f.folder === activeKBFolder || f.division_id === activeKBFolder);
+                                                
+                                                if (folderFiles.length === 0) {
+                                                    return (
+                                                        <tr><td colSpan={5} className="text-center py-12 text-slate-400">
+                                                            <Database size={32} className="mx-auto mb-3 opacity-50" />
+                                                            <p className="font-bold">Folder kosong</p>
+                                                            <p className="text-xs mt-1">Klik &quot;Unggah File&quot; untuk menambahkan file pertama.</p>
+                                                        </td></tr>
+                                                    );
+                                                }
+                                                
+                                                return folderFiles.map(file => {
+                                                    const ext = file.file_url?.split('.').pop()?.toLowerCase() || '';
+                                                    const isPdf = ext === 'pdf';
+                                                    const isImage = ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
+                                                    const isDoc = ['doc','docx'].includes(ext);
+                                                    const iconColor = isPdf ? 'text-red-500 bg-red-50' : isImage ? 'text-purple-500 bg-purple-50' : isDoc ? 'text-blue-500 bg-blue-50' : 'text-slate-500 bg-slate-100';
+                                                    
+                                                    return (
+                                                        <tr key={file.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="py-3 px-6">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+                                                                        <FileText size={16} />
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-bold text-slate-900 truncate">{file.title}</p>
+                                                                        <p className="text-[10px] text-slate-400 font-bold uppercase sm:hidden">{file.pengurus?.full_name} • {formatFileSize(file.file_size)}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{file.pengurus?.full_name || '-'}</td>
+                                                            <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{formatFileSize(file.file_size)}</td>
+                                                            <td className="py-3 px-6 text-slate-500 font-medium hidden sm:table-cell">{new Date(file.created_at).toLocaleDateString("id-ID")}</td>
+                                                            <td className="py-3 px-6">
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 p-2 rounded-lg transition-colors" title="Download">
+                                                                        <Download size={16} />
+                                                                    </a>
+                                                                    {(file.uploaded_by === pengurus.id || isCoordinator) && !isReadOnly && (
+                                                                        <button onClick={() => deleteKnowledgeFile(file.id)} className="text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors" title="Hapus">
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                });
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </motion.div>
                 )}
 
