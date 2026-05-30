@@ -59,6 +59,17 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- Create bucket for kas payment proof
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'kas-bukti',
+    'kas-bukti',
+    true,
+    10485760, -- 10MB
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================
 -- 2. ROW LEVEL SECURITY POLICIES
 -- ============================================

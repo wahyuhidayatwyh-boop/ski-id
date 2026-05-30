@@ -16,13 +16,14 @@ export default function Navbar() {
     { name: "Dokumentasi", href: "/dokumentasi" },
     { name: "Katalog Produk", href: "/katalog" },
     { name: "Transparansi Keuangan", href: "/keuangan" },
+    { name: "Donasi", href: "/donasi" },
   ];
 
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
       <div className="container mx-auto px-4 md:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          
+
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
             <div className="w-12 h-12 flex items-center justify-center">
@@ -47,9 +48,8 @@ export default function Navbar() {
                   <li key={link.name} className="h-full flex items-center">
                     <Link
                       href={link.href}
-                      className={`h-full flex items-center gap-1 text-[13px] font-semibold transition-colors relative ${
-                        isActive ? "text-[#0ea5e9]" : "text-gray-500 hover:text-[#0f172a]"
-                      }`}
+                      className={`h-full flex items-center gap-1 text-[13px] font-semibold transition-colors relative ${isActive ? "text-[#0ea5e9]" : "text-gray-500 hover:text-[#0f172a]"
+                        }`}
                     >
                       {link.name}
                       {isActive && (
@@ -94,9 +94,8 @@ export default function Navbar() {
                   <Link
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center justify-between py-3 border-b border-gray-50 text-sm font-semibold ${
-                      isActive ? "text-[#0ea5e9]" : "text-gray-600"
-                    }`}
+                    className={`flex items-center justify-between py-3 border-b border-gray-50 text-sm font-semibold ${isActive ? "text-[#0ea5e9]" : "text-gray-600"
+                      }`}
                   >
                     {link.name}
                   </Link>
