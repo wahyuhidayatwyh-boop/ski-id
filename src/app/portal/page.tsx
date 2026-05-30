@@ -2370,76 +2370,77 @@ export default function DakwahOSPortal() {
                                 </div>
                             )}
 
-                            {/* Tabel Progress Kas Pengurus (Full Table with 12 Months) */}
-                            {isBendahara && allPengurusList.length > 0 && (
-                                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm mt-6">
-                                    <h4 className="font-black text-slate-900 flex items-center gap-2 mb-4">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-500"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
-                                        Tabel Progress Pembayaran Kas (Jan - Des {new Date().getFullYear()})
-                                    </h4>
+                            {/* Tabel Progress Kas Seluruh Pengurus - Visible to ALL members */}
+                            {allPengurusList.length > 0 && (
+                                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                                        <h4 className="font-black text-slate-900 flex items-center gap-2">
+                                            <Users size={18} className="text-sky-500" />
+                                            Daftar Kas Seluruh Pengurus
+                                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{new Date().getFullYear()}</span>
+                                        </h4>
+                                        <p className="text-[11px] text-slate-400 font-medium">
+                                            <span className="inline-block w-2.5 h-2.5 bg-sky-200 rounded-full mr-1" />
+                                            Baris biru = kamu
+                                        </p>
+                                    </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-sm">
                                             <thead>
-                                                <tr className="border-b-2 border-slate-200">
+                                                <tr className="border-b-2 border-slate-200 bg-slate-50">
                                                     <th className="py-3 px-2 font-black text-slate-700 text-xs uppercase tracking-wider sticky left-0 bg-slate-50">Nama Pengurus</th>
                                                     <th className="py-3 px-2 font-black text-slate-700 text-xs uppercase tracking-wider">Jabatan</th>
                                                     <th className="py-3 px-2 font-black text-slate-700 text-xs uppercase tracking-wider">Divisi</th>
                                                     <th className="py-3 px-2 font-black text-slate-700 text-xs uppercase tracking-wider text-center">Total</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center bg-slate-50">Jan</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center">Feb</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center bg-slate-50">Mar</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center">Apr</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center bg-slate-50">Mei</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center">Jun</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center bg-slate-50">Jul</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center">Agt</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center bg-slate-50">Sep</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center">Okt</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center bg-slate-50">Nov</th>
-                                                    <th className="py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center">Des</th>
+                                                    {['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'].map((m, i) => (
+                                                        <th key={i} className={`py-3 px-1 font-black text-slate-700 text-[10px] uppercase tracking-wider text-center ${i % 2 === 0 ? 'bg-slate-100' : ''}`}>{m}</th>
+                                                    ))}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {allPengurusList.map(pengurus => {
-                                                    // Get all verified payments for this pengurus for current year
+                                                {allPengurusList.map(p => {
                                                     const currentYear = new Date().getFullYear();
-                                                    const paidMonths = pembayaranKas.filter(
-                                                        k => k.pengurus_id === pengurus.id && k.tahun === currentYear && k.status === 'VERIFIED'
-                                                    );
-                                                    const paidMonthNums = paidMonths.map(k => k.bulan);
-                                                    const pendingMonths = pembayaranKas.filter(
-                                                        k => k.pengurus_id === pengurus.id && k.tahun === currentYear && k.status === 'PENDING'
-                                                    );
-                                                    const pendingMonthNums = pendingMonths.map(k => k.bulan);
-
+                                                    const isSelf = pengurus?.id === p.id;
+                                                    const paidMonthNums = pembayaranKas
+                                                        .filter(k => k.pengurus_id === p.id && k.tahun === currentYear && k.status === 'VERIFIED')
+                                                        .map(k => k.bulan);
+                                                    const pendingMonthNums = pembayaranKas
+                                                        .filter(k => k.pengurus_id === p.id && k.tahun === currentYear && k.status === 'PENDING')
+                                                        .map(k => k.bulan);
                                                     const totalPaid = paidMonthNums.length;
-                                                    const totalMonths = 12;
 
                                                     return (
-                                                        <tr key={pengurus.id} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="py-3 px-2 font-bold text-slate-900 sticky left-0 bg-white">{pengurus.full_name}</td>
-                                                            <td className="py-3 px-2 text-slate-600 text-xs">{pengurus.jabatan}</td>
-                                                            <td className="py-3 px-2 text-slate-600 text-xs">{pengurus.divisions?.name || '-'}</td>
+                                                        <tr key={p.id} className={`transition-colors ${isSelf ? 'bg-sky-50 hover:bg-sky-100' : 'hover:bg-slate-50'}`}>
+                                                            <td className={`py-3 px-2 sticky left-0 ${isSelf ? 'bg-sky-50' : 'bg-white'}`}>
+                                                                <div className="flex items-center gap-2">
+                                                                    {isSelf && <span className="w-1.5 h-1.5 rounded-full bg-sky-500 flex-shrink-0" />}
+                                                                    <span className={`font-bold text-sm ${isSelf ? 'text-sky-700' : 'text-slate-900'}`}>{p.full_name}</span>
+                                                                    {isSelf && <span className="text-[9px] font-black bg-sky-500 text-white px-1.5 py-0.5 rounded-full">KAMU</span>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 px-2 text-slate-600 text-xs">{p.jabatan}</td>
+                                                            <td className="py-3 px-2 text-slate-600 text-xs">{p.divisions?.name || '-'}</td>
                                                             <td className="py-3 px-2 text-center">
-                                                                <span className={`font-black text-xs px-2 py-1 rounded-full ${totalPaid === totalMonths ? 'bg-green-100 text-green-700' : totalPaid >= totalMonths / 2 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                                                                    {totalPaid}/{totalMonths}
+                                                                <span className={`font-black text-xs px-2 py-1 rounded-full ${totalPaid === 12 ? 'bg-green-100 text-green-700' : totalPaid >= 6 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                                                    {totalPaid}/12
                                                                 </span>
                                                             </td>
-                                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => {
+                                                            {[1,2,3,4,5,6,7,8,9,10,11,12].map(month => {
                                                                 const isPaid = paidMonthNums.includes(month);
                                                                 const isPending = pendingMonthNums.includes(month);
                                                                 const isCurrentMonth = month === new Date().getMonth() + 1;
-
                                                                 return (
-                                                                    <td key={month} className={`py-3 px-1 text-center ${month % 2 === 1 ? 'bg-slate-50' : ''}`}>
+                                                                    <td key={month} className={`py-3 px-1 text-center ${month % 2 === 1 ? (isSelf ? 'bg-sky-50/50' : 'bg-slate-50') : ''}`}>
                                                                         {isPaid ? (
-                                                                            <span className="inline-block w-3 h-3 bg-green-500 rounded-full" title="Lunas"></span>
+                                                                            <span className="inline-block w-3 h-3 bg-green-500 rounded-full" title="Lunas" />
                                                                         ) : isPending ? (
-                                                                            <span className="inline-block w-3 h-3 bg-amber-500 rounded-full" title="Menunggu Verifikasi"></span>
+                                                                            <span className="inline-block w-3 h-3 bg-amber-400 rounded-full" title="Menunggu Verifikasi" />
+                                                                        ) : month > new Date().getMonth() + 1 ? (
+                                                                            <span className="inline-block w-3 h-3 bg-slate-200 rounded-full" title="Belum Jatuh Tempo" />
                                                                         ) : isCurrentMonth ? (
-                                                                            <span className="inline-block w-3 h-3 bg-slate-300 rounded-full" title="Belum Jatuh Tempo"></span>
+                                                                            <span className="inline-block w-3 h-3 bg-slate-300 rounded-full" title="Bulan Ini" />
                                                                         ) : (
-                                                                            <span className="inline-block w-3 h-3 bg-red-400 rounded-full" title="Belum Bayar"></span>
+                                                                            <span className="inline-block w-3 h-3 bg-red-400 rounded-full" title="Belum Bayar" />
                                                                         )}
                                                                     </td>
                                                                 );
@@ -2450,11 +2451,11 @@ export default function DakwahOSPortal() {
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
-                                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-green-500 rounded-full"></span> Lunas</span>
-                                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-amber-500 rounded-full"></span> Menunggu Verifikasi</span>
-                                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-red-400 rounded-full"></span> Belum Bayar</span>
-                                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-slate-300 rounded-full"></span> Belum Jatuh Tempo</span>
+                                    <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                                        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 bg-green-500 rounded-full" /> Lunas</span>
+                                        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 bg-amber-400 rounded-full" /> Menunggu Verifikasi</span>
+                                        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 bg-red-400 rounded-full" /> Belum Bayar</span>
+                                        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 bg-slate-200 rounded-full" /> Belum Jatuh Tempo</span>
                                     </div>
                                 </div>
                             )}
