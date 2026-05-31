@@ -26,6 +26,7 @@ export default function Admin1Profil() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [filterKabinetId, setFilterKabinetId] = useState<string>("");
 
     useEffect(() => { fetchAll(); }, []);
 
@@ -39,6 +40,11 @@ export default function Admin1Profil() {
         setKabinets(kab || []);
         setDivisions(div || []);
         setPengurus(pen || []);
+        // Auto-set filter ke kabinet aktif
+        if (kab && kab.length > 0) {
+            const active = kab.find(k => k.is_active);
+            setFilterKabinetId(active?.id || kab[0].id);
+        }
         setLoading(false);
     };
 
@@ -71,16 +77,20 @@ export default function Admin1Profil() {
     };
 
     const filteredKabinets = kabinets.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    const filteredDivisions = divisions.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    const filteredPengurus = pengurus.filter(p =>
-        (p.full_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.jabatan || "").toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredDivisions = divisions
+        .filter(d => !filterKabinetId || (d as any).kabinet_id === filterKabinetId)
+        .filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const filteredPengurus = pengurus
+        .filter(p => !filterKabinetId || p.kabinet_id === filterKabinetId)
+        .filter(p =>
+            (p.full_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.jabatan || "").toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
     const tabs: { id: TabType; label: string; icon: React.ReactNode; count: number }[] = [
         { id: "kabinet", label: "Kabinet", icon: <Crown size={16} />, count: kabinets.length },
-        { id: "divisi", label: "Divisi", icon: <Briefcase size={16} />, count: divisions.length },
-        { id: "pengurus", label: "Pengurus", icon: <Users size={16} />, count: pengurus.length },
+        { id: "divisi", label: "Divisi", icon: <Briefcase size={16} />, count: filteredDivisions.length },
+        { id: "pengurus", label: "Pengurus", icon: <Users size={16} />, count: filteredPengurus.length },
     ];
 
     if (loading) return (
@@ -116,6 +126,31 @@ export default function Admin1Profil() {
                         </button>
                     ))}
                 </div>
+
+                {/* Filter Kabinet (untuk tab divisi dan pengurus) */}
+                {(activeTab === "divisi" || activeTab === "pengurus") && (
+                    <div className="mb-4 flex items-center gap-3">
+                        <Building2 size={16} className="text-sky-500" />
+                        <label className="text-sm font-semibold text-gray-600">Filter Kabinet:</label>
+                        <select
+                            value={filterKabinetId}
+                            onChange={e => { setFilterKabinetId(e.target.value); setSearchQuery(""); }}
+                            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium text-gray-700"
+                        >
+                            <option value="">Semua Kabinet</option>
+                            {kabinets.map(k => (
+                                <option key={k.id} value={k.id}>
+                                    {k.name} ({k.period}){k.is_active ? " ✓ Aktif" : ""}
+                                </option>
+                            ))}
+                        </select>
+                        {filterKabinetId && (
+                            <span className="text-xs text-sky-600 font-semibold bg-sky-50 px-2 py-1 rounded-lg">
+                                {kabinets.find(k => k.id === filterKabinetId)?.name}
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* Search */}
                 <div className="mb-6">

@@ -8,7 +8,7 @@ import { Save, ArrowLeft, Loader2, X } from "lucide-react";
 import { handleImageUpload } from "@/lib/upload";
 
 interface Division { id: string; name: string; }
-interface Kabinet { id: string; name: string; period: string; }
+interface Kabinet { id: string; name: string; period: string; is_active?: boolean; }
 
 export default function EditPengurusPage() {
     const router = useRouter();
@@ -17,7 +17,7 @@ export default function EditPengurusPage() {
     const role = "admin1";
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [divisions, setDivisions] = useState<Division[]>([]);
+    const [filteredDivisions, setFilteredDivisions] = useState<Division[]>([]);
     const [kabinets, setKabinets] = useState<Kabinet[]>([]);
     const [form, setForm] = useState({
         full_name: "", jabatan: "", nim: "", prodi: "",
@@ -29,13 +29,12 @@ export default function EditPengurusPage() {
 
     useEffect(() => {
         Promise.all([
-            supabase.from("divisions").select("id, name").order("name"),
-            supabase.from("kabinets").select("id, name, period").order("created_at", { ascending: false }),
+            supabase.from("kabinets").select("id, name, period, is_active").order("created_at", { ascending: false }),
             supabase.from("pengurus").select("*").eq("id", penId).single(),
-        ]).then(([{ data: divData }, { data: kabData }, { data: penData }]) => {
-            setDivisions(divData || []);
+        ]).then(([{ data: kabData }, { data: penData }]) => {
             setKabinets(kabData || []);
             if (penData) {
+                const kabId = penData.kabinet_id || "";
                 setForm({
                     full_name: penData.full_name || "",
                     jabatan: penData.jabatan || "",
@@ -43,14 +42,26 @@ export default function EditPengurusPage() {
                     prodi: penData.prodi || "",
                     photo_url: penData.photo_url || "",
                     division_id: penData.division_id || "",
-                    kabinet_id: penData.kabinet_id || "",
+                    kabinet_id: kabId,
                     role_level: penData.role_level || "staff",
                     status: penData.status || "active",
                 });
+                // Load divisi sesuai kabinet saat ini
+                if (kabId) {
+                    supabase.from("divisions").select("id, name").eq("kabinet_id", kabId).order("name")
+                        .then(({ data }) => setFilteredDivisions(data || []));
+                }
             }
             setLoading(false);
         });
     }, [penId]);
+
+    // Load divisi ketika kabinet berubah
+    useEffect(() => {
+        if (!form.kabinet_id) { setFilteredDivisions([]); return; }
+        supabase.from("divisions").select("id, name").eq("kabinet_id", form.kabinet_id).order("name")
+            .then(({ data }) => setFilteredDivisions(data || []));
+    }, [form.kabinet_id]);
 
     const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -141,17 +152,18 @@ export default function EditPengurusPage() {
                                 </div>
                                 <div>
                                     <label className={lc}>Kabinet</label>
-                                    <select className={ic} value={form.kabinet_id} onChange={e => setForm({ ...form, kabinet_id: e.target.value })}>
+                                    <select className={ic} value={form.kabinet_id} onChange={e => setForm({ ...form, kabinet_id: e.target.value, division_id: "" })}>
                                         <option value="">-- Pilih Kabinet --</option>
-                                        {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} ({k.period})</option>)}
+                                        {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} ({k.period}){k.is_active ? " ✓ Aktif" : ""}</option>)}
                                     </select>
                                 </div>
                                 <div>
                                     <label className={lc}>Divisi</label>
-                                    <select className={ic} value={form.division_id} onChange={e => setForm({ ...form, division_id: e.target.value })}>
-                                        <option value="">-- Pilih Divisi --</option>
-                                        {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    <select className={ic} value={form.division_id} onChange={e => setForm({ ...form, division_id: e.target.value })} disabled={!form.kabinet_id}>
+                                        <option value="">{form.kabinet_id ? "-- Pilih Divisi --" : "-- Pilih Kabinet dulu --"}</option>
+                                        {filteredDivisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                     </select>
+                                    {!form.kabinet_id && <p className="text-xs text-amber-500 mt-1">Pilih kabinet terlebih dahulu</p>}
                                 </div>
                                 <div>
                                     <label className={lc}>NIM</label>

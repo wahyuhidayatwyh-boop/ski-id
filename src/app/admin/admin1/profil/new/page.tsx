@@ -16,8 +16,8 @@ function NewProfilContent() {
     const role = "admin1";
     const tab = searchParams.get("tab") || "kabinet";
     const [saving, setSaving] = useState(false);
-    const [divisions, setDivisions] = useState<Division[]>([]);
-    const [kabinets, setKabinets] = useState<Kabinet[]>([]);
+    const [allDivisions, setAllDivisions] = useState<Division[]>([]);
+    const [kabinets, setKabinets] = useState<(Kabinet & { is_active?: boolean })[]>([]);
 
     // Kabinet form
     const [kabinetForm, setKabinetForm] = useState({
@@ -27,6 +27,13 @@ function NewProfilContent() {
 
     // Divisi form
     const [divisiForm, setDivisiForm] = useState({ name: "", description: "", icon: "", kabinet_id: "" });
+
+    // Fetch divisi saat kabinet berubah (untuk form pengurus)
+    useEffect(() => {
+        if (!pengurusForm.kabinet_id) { setAllDivisions([]); return; }
+        supabase.from("divisions").select("id, name").eq("kabinet_id", pengurusForm.kabinet_id).order("name")
+            .then(({ data }) => setAllDivisions(data || []));
+    }, [pengurusForm.kabinet_id]);
 
     // Pengurus form
     const [pengurusForm, setPengurusForm] = useState({
@@ -43,13 +50,16 @@ function NewProfilContent() {
     const heroInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        Promise.all([
-            supabase.from("divisions").select("id, name").order("name"),
-            supabase.from("kabinets").select("id, name, period").order("created_at", { ascending: false }),
-        ]).then(([{ data: d }, { data: k }]) => {
-            setDivisions(d || []);
-            setKabinets(k || []);
-        });
+        supabase.from("kabinets").select("id, name, period, is_active").order("created_at", { ascending: false })
+            .then(({ data: k }) => {
+                setKabinets(k || []);
+                // Auto-pilih kabinet aktif
+                const active = (k || []).find((kb: any) => kb.is_active);
+                if (active) {
+                    setDivisiForm(prev => ({ ...prev, kabinet_id: active.id }));
+                    setPengurusForm(prev => ({ ...prev, kabinet_id: active.id }));
+                }
+            });
     }, []);
 
     // ===== SUBMIT KABINET =====
@@ -464,17 +474,18 @@ function NewProfilContent() {
                                     </div>
                                     <div>
                                         <label className={lc}>Kabinet</label>
-                                        <select className={ic} value={pengurusForm.kabinet_id} onChange={e => setPengurusForm({ ...pengurusForm, kabinet_id: e.target.value })}>
+                                        <select className={ic} value={pengurusForm.kabinet_id} onChange={e => { setPengurusForm({ ...pengurusForm, kabinet_id: e.target.value, division_id: "" }); }}>
                                             <option value="">-- Pilih Kabinet --</option>
-                                            {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} ({k.period})</option>)}
+                                            {kabinets.map(k => <option key={k.id} value={k.id}>{k.name} ({k.period}){(k as any).is_active ? " ✓ Aktif" : ""}</option>)}
                                         </select>
                                     </div>
                                     <div>
                                         <label className={lc}>Divisi</label>
-                                        <select className={ic} value={pengurusForm.division_id} onChange={e => setPengurusForm({ ...pengurusForm, division_id: e.target.value })}>
-                                            <option value="">-- Pilih Divisi --</option>
-                                            {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                        <select className={ic} value={pengurusForm.division_id} onChange={e => setPengurusForm({ ...pengurusForm, division_id: e.target.value })} disabled={!pengurusForm.kabinet_id}>
+                                            <option value="">{pengurusForm.kabinet_id ? "-- Pilih Divisi --" : "-- Pilih Kabinet dulu --"}</option>
+                                            {allDivisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                         </select>
+                                        {!pengurusForm.kabinet_id && <p className="text-xs text-amber-500 mt-1">Pilih kabinet terlebih dahulu untuk memuat daftar divisi</p>}
                                     </div>
                                     <div>
                                         <label className={lc}>NIM</label>
